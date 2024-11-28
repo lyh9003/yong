@@ -13,7 +13,6 @@ import subprocess
 
 client = OpenAI(api_key='sk-proj-se3fps7dCvs2wKKLIw9MT3BlbkFJPShNlrLQoJWfE5gN0ehV')
 
-
 def git_update_and_push(file_name, commit_message):
     try:
         # git add
