@@ -143,7 +143,7 @@ for search in keywords:
     for i in urls:
         url_list = articles_crawler(i)
         news_url.append(url_list)
-        time.sleep(random.uniform(0.2, 0.4))
+        time.sleep(random.uniform(1, 2))
     
     news_url_1 = []
     makeList(news_url_1, news_url)
@@ -184,7 +184,7 @@ for search in keywords:
         news_titles.append(title)
         news_contents.append(content)
         news_dates.append(news_date)
-        time.sleep(random.uniform(0.2, 0.4))
+        time.sleep(random.uniform(1, 2))
     
     # 데이터프레임 생성
     news_df = pd.DataFrame({
