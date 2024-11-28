@@ -1,0 +1,9 @@
+beautifulsoup4
+pandas
+requests
+datetime
+tqdm
+time
+random
+selenium
+openai
