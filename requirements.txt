@@ -3,6 +3,5 @@ pandas
 requests
 datetime
 tqdm
-random
 selenium
 openai
