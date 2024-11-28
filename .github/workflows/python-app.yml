@@ -1,0 +1,36 @@
+name: Update CSV File
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '30 21 * * *'  # 매일 19시 55분에 실행
+
+jobs:
+  update_csv:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run script
+        run: |
+          python your_script.py
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "Hun"
+          git config --global user.email "yh9003@naver.com"
+          git add Total_Filtered_No_Comment.csv
+          git commit -m "Automated update of CSV"
+          git push
