@@ -13,8 +13,22 @@ from openai import OpenAI
 import re
 import json
 import os
+import subprocess
 
 client = OpenAI(api_key='sk-proj-se3fps7dCvs2wKKLIw9MT3BlbkFJPShNlrLQoJWfE5gN0ehV')
+
+
+def git_update_and_push(file_name, commit_message):
+    try:
+        # git add
+        subprocess.run(["git", "add", file_name], check=True)
+        # git commit
+        subprocess.run(["git", "commit", "-m", commit_message], check=True)
+        # git push
+        subprocess.run(["git", "push"], check=True)
+        print(f"{file_name} 파일이 GitHub에 성공적으로 업데이트되었습니다.")
+    except subprocess.CalledProcessError as e:
+        print(f"Git 작업 중 오류 발생: {e}")
 
 # ====== 뉴스 크롤링 ======
 
@@ -88,7 +102,7 @@ def makeList(newlist, content):
 
 
 # 키워드 파일 불러오기
-keyword_df = pd.read_csv('keyword_org.csv', encoding='cp949')
+keyword_df = pd.read_csv('keyword_test.csv', encoding='cp949')
 keywords = keyword_df['키워드'].unique().tolist()
 
 
@@ -567,3 +581,7 @@ updated_data = merge_and_remove_duplicates(existing_data, all_news_df_filtered)
 
 # 병합된 데이터 저장
 save_updated_data(updated_data, file_name)
+
+file_name = "Total_Filtered_No_Comment.csv"
+commit_message = "자동화된 CSV 파일 업데이트"
+git_update_and_push(file_name, commit_message)
