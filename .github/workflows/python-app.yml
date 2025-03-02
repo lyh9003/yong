@@ -1,11 +1,10 @@
 name: Run Naver News Crawler
 
-# 저장소에 push되거나 (또는 원하는 스케줄에 따라) 자동으로 실행되도록 설정합니다.
 on:
   push:
     branches: [ main ]
   schedule:
-    - cron: '0 0 * * *'  # 매일 자정에 실행 (원하는 시간대로 변경 가능)
+    - cron: '0 0 * * *'  # 매일 자정 실행 (원하는 시간대로 수정 가능)
 
 jobs:
   run-crawler:
@@ -25,4 +24,22 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run the crawler script
-        run: python naver_news.py
+        run: python naver_news(241123)_AI(keyword)_댓글수없이 바로.py
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      # 아래 단계는 CSV 파일의 변경 사항을 커밋하고 푸시하는 부분입니다.
+      - name: Commit CSV changes
+        run: |
+          # Git 사용자 정보 설정 (원하는 이메일과 이름으로 변경)
+          git config --local user.email "lyh9003@gmail.com"
+          git config --local user.name "LeeYongHoon"
+          # CSV 파일 변경 사항 추가
+          git add Total_Filtered_No_Comment.csv
+          # 변경 사항이 없으면 에러가 나지 않도록 처리
+          git commit -m "Update Total_Filtered_No_Comment.csv" || echo "No changes to commit"
+          # main 브랜치에 변경 사항 푸시
+          git push origin HEAD:main
+        env:
+          # GitHub Actions에서는 GITHUB_TOKEN이 자동 제공됩니다.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
