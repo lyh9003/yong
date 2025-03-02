@@ -24,7 +24,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run the crawler script
-        run: python naver_news(241123)_AI(keyword)_댓글수없이 바로.py
+        run: python naver_news.py
 
       # 아래 단계는 CSV 파일의 변경 사항을 커밋하고 푸시하는 부분입니다.
       - name: Commit CSV changes
