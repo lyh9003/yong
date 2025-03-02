@@ -1,18 +1,18 @@
-name: Update CSV File
+name: Run Naver News Crawler
 
+# 저장소에 push되거나 (또는 원하는 스케줄에 따라) 자동으로 실행되도록 설정합니다.
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   schedule:
-    - cron: '30 21 * * *'  # 매일 19시 55분에 실행
+    - cron: '0 0 * * *'  # 매일 자정에 실행 (원하는 시간대로 변경 가능)
 
 jobs:
-  update_csv:
+  run-crawler:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -21,16 +21,8 @@ jobs:
 
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run script
-        run: |
-          python your_script.py
-
-      - name: Commit and push changes
-        run: |
-          git config --global user.name "Hun"
-          git config --global user.email "yh9003@naver.com"
-          git add Total_Filtered_No_Comment.csv
-          git commit -m "Automated update of CSV"
-          git push
+      - name: Run the crawler script
+        run: python naver_news(241123)_AI(keyword)_댓글수없이 바로.py
