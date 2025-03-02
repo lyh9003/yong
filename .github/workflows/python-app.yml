@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   schedule:
-    - cron: '0 0 * * *'  # 매일 자정 실행 (원하는 시간대로 수정 가능)
+    - cron: '0 0 * * *'  # 매일 자정에 실행 (원하는 시간대로 수정 가능)
 
 jobs:
   run-crawler:
@@ -25,8 +25,14 @@ jobs:
 
       - name: Run the crawler script
         run: python naver_news.py
+        # 크롤러 스크립트 파일 이름이 'naver_news.py'인지 확인하세요.
+        # 만약 원래 파일 이름이 특수 문자를 포함하면, 따옴표로 감싸주세요.
 
-      # 아래 단계는 CSV 파일의 변경 사항을 커밋하고 푸시하는 부분입니다.
+      - name: Set remote URL with PAT token
+        run: |
+          git remote set-url origin https://${{ secrets.NAVER_NEWS }}@github.com/lyh9003/yong.git
+          git remote -v
+
       - name: Commit CSV changes
         run: |
           # Git 사용자 정보 설정 (원하는 이메일과 이름으로 변경)
@@ -34,9 +40,7 @@ jobs:
           git config --local user.name "LeeYongHoon"
           # CSV 파일 변경 사항 추가
           git add Total_Filtered_No_Comment.csv
-          
           # 변경 사항이 없으면 에러가 나지 않도록 처리
           git commit -m "Update Total_Filtered_No_Comment.csv" || echo "No changes to commit"
-          # PAT_TOKEN을 이용해 원격 저장소에 푸시합니다.
-          git push https://${{ secrets.NAVER_NEWS }}@github.com/lyh9003/yong.git HEAD:main
-    
+          # 원격 저장소로 푸시
+          git push origin HEAD:main
