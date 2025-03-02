@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   schedule:
-    - cron: '0 0 * * *'  # 매일 자정에 실행 (원하는 시간대로 수정 가능)
+    - cron: '0 0 * * *'  # 매일 자정에 실행 (원하는 시간 수정 가능)
 
 jobs:
   run-crawler:
