@@ -70,10 +70,24 @@ def news_attrs_crawler(articles, attrs):
     return attrs_content
 
 # 뉴스 링크 크롤링
+#def articles_crawler(url):
+#    original_html = requests.get(url, headers=headers)
+#    html = BeautifulSoup(original_html.text, "html.parser")#
+#
+#    url_naver = html.select(
+#        "div.group_news > ul.list_news > li div.news_area > div.news_info > div.info_group > a.info")
+#    url = news_attrs_crawler(url_naver, 'href')
+#    return url
+
 def articles_crawler(url):
     original_html = requests.get(url, headers=headers)
+    
+    # 응답 HTML 확인: GitHub Actions 로그에 출력
+    print("==== HTML Response 시작 ====")
+    print(original_html.text)
+    print("==== HTML Response 끝 ====")
+    
     html = BeautifulSoup(original_html.text, "html.parser")
-
     url_naver = html.select(
         "div.group_news > ul.list_news > li div.news_area > div.news_info > div.info_group > a.info")
     url = news_attrs_crawler(url_naver, 'href')
@@ -106,8 +120,14 @@ start_pg = 1
 end_pg = 2  # 원하는 페이지 범위로 설정하세요.
 
 # URL 생성
+#headers = {
+#    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"
+#}
+
 headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36",
+    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Referer": "https://www.naver.com/"
 }
 
 # 결과를 저장할 DataFrame 초기화
