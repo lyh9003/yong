@@ -36,8 +36,8 @@ jobs:
           git add Total_Filtered_No_Comment.csv
           # 변경 사항이 없으면 에러가 나지 않도록 처리
           git commit -m "Update Total_Filtered_No_Comment.csv" || echo "No changes to commit"
-          # main 브랜치에 변경 사항 푸시
-          git push origin HEAD:main
+          # PAT_TOKEN을 이용해 원격 저장소에 푸시합니다.
+          git push https://${{ secrets.PAT_TOKEN }}@github.com/lyh9003/yong.git HEAD:main
         env:
           # GitHub Actions에서는 GITHUB_TOKEN이 자동 제공됩니다.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
