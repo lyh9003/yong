@@ -13,22 +13,8 @@ from openai import OpenAI
 import re
 import json
 import os
-import subprocess
 
 client = OpenAI(api_key='sk-proj-se3fps7dCvs2wKKLIw9MT3BlbkFJPShNlrLQoJWfE5gN0ehV')
-
-
-def git_update_and_push(file_name, commit_message):
-    try:
-        # git add
-        subprocess.run(["git", "add", file_name], check=True)
-        # git commit
-        subprocess.run(["git", "commit", "-m", commit_message], check=True)
-        # git push
-        subprocess.run(["git", "push"], check=True)
-        print(f"{file_name} 파일이 GitHub에 성공적으로 업데이트되었습니다.")
-    except subprocess.CalledProcessError as e:
-        print(f"Git 작업 중 오류 발생: {e}")
 
 # ====== 뉴스 크롤링 ======
 
@@ -102,7 +88,7 @@ def makeList(newlist, content):
 
 
 # 키워드 파일 불러오기
-keyword_df = pd.read_csv('keyword_test.csv', encoding='cp949')
+keyword_df = pd.read_csv('keyword_org.csv', encoding='cp949')
 keywords = keyword_df['키워드'].unique().tolist()
 
 
@@ -117,7 +103,7 @@ start_date = (datetime.datetime.now() - datetime.timedelta(days=31)).strftime("%
 
 # 시작 및 종료 페이지 설정
 start_pg = 1
-end_pg = 1  # 원하는 페이지 범위로 설정하세요.
+end_pg = 5  # 원하는 페이지 범위로 설정하세요.
 
 # URL 생성
 headers = {
@@ -313,18 +299,15 @@ for search in keywords:
             return None
     
     def process_article(title):
-        keyword_list = get_related_keywords(title, keyword_df)
-        if keyword_list is None:
-            print(f"관련 없는 기사 또는 오류 발생: {title}\n")
-            return pd.Series({'키워드': None})
-        elif isinstance(keyword_list, list):  # 리스트라면 문자열로 변환
-            return pd.Series({'키워드': ', '.join(keyword_list)})
-        else:  # 문자열로 이미 처리된 경우
-            return pd.Series({'키워드': keyword_list})
+        keyword = get_related_keywords(title, keyword_df)
+        if keyword is None:
+            return "관련 없음"  # 키워드가 없으면 기본값 반환
+        return keyword
+
         
     # 함수 적용하여 '구분'과 '키워드' 칼럼 추가
     print(f"키워드 '{search}'에 대한중복내용 제거")
-    news_df[['키워드']] = news_df['title'].apply(process_article)
+    news_df['키워드'] = news_df['title'].apply(process_article)
     
     # 관련 없는 기사 제거
 
@@ -581,7 +564,3 @@ updated_data = merge_and_remove_duplicates(existing_data, all_news_df_filtered)
 
 # 병합된 데이터 저장
 save_updated_data(updated_data, file_name)
-
-file_name = "Total_Filtered_No_Comment.csv"
-commit_message = "자동화된 CSV 파일 업데이트"
-git_update_and_push(file_name, commit_message)
