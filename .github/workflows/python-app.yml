@@ -25,4 +25,4 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run the crawler script
-        run: python naver_news(241123)_AI(keyword)_댓글수없이 바로.py
+        run: python naver_news.py
