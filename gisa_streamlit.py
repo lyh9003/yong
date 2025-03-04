@@ -94,10 +94,6 @@ for current_date, date_group in grouped_by_date:
                 if st.button(f"요약 보기: {row['title']}", key=f"summary_{idx}"):
                     st.write(row.get('summary', '요약 정보가 없습니다.'))
 
-                # 본문 보기 버튼
-                if st.button(f"본문 보기: {row['title']}", key=f"content_{idx}"):
-                    st.write(row.get('content', '본문 정보가 없습니다.'))
-
                 # 기사 링크
                 link = row.get('link', None)
                 if pd.notna(link):
