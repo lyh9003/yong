@@ -14,7 +14,8 @@ import re
 import json
 import os
 
-client = OpenAI(api_key='sk-proj-se3fps7dCvs2wKKLIw9MT3BlbkFJPShNlrLQoJWfE5gN0ehV')
+api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=api_key)
 
 # ====== 뉴스 크롤링 ======
 
