@@ -6,7 +6,7 @@ GITHUB_CSV_URL = "https://raw.githubusercontent.com/lyh9003/yong/main/Total_Filt
 
 @st.cache_data
 def load_data():
-    return pd.read_csv(GITHUB_CSV_URL, encoding='cp949')
+    return pd.read_csv(GITHUB_CSV_URL, encoding='utf-8-sig')
 
 # 데이터 불러오기
 df = load_data()
