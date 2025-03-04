@@ -21,7 +21,7 @@ def load_data():
             return []
         return [x.strip() for x in str(k).split(',') if x.strip()]
     
-    df['keywords_list'] = df['keywords'].apply(split_keywords)
+    df['keywords_list'] = df['키워드'].apply(split_keywords)
     
     return df
 
