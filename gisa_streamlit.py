@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # GitHub의 Raw CSV 파일 URL
-GITHUB_CSV_URL = "https://raw.githubusercontent.com/yh9003/yong/main/Total_Filtered_No_Comment.csv"
+GITHUB_CSV_URL = "https://raw.githubusercontent.com/lyh9003/yong/main/Total_Filtered_No_Comment.csv"
 
 @st.cache_data
 def load_data():
