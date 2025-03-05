@@ -82,11 +82,7 @@ def news_attrs_crawler(articles, attrs):
 
 def articles_crawler(url):
     original_html = requests.get(url, headers=headers)
-    
-    # 응답 HTML 확인: GitHub Actions 로그에 출력
-    print("==== HTML Response 시작 ====")
-    print(original_html.text)
-    print("==== HTML Response 끝 ====")
+  
     
     html = BeautifulSoup(original_html.text, "html.parser")
     url_naver = html.select(
