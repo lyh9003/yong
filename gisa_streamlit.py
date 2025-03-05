@@ -4,7 +4,7 @@ import datetime
 
 GITHUB_CSV_URL = "https://raw.githubusercontent.com/lyh9003/yong/main/Total_Filtered_No_Comment.csv"
 
-@st.cache_data
+@st.cache_data(ttl=3600)  # 예: 3600초(1시간) 뒤 캐시 자동 만료
 def load_data():
     """CSV를 불러와 DataFrame으로 반환합니다."""
     df = pd.read_csv(GITHUB_CSV_URL, encoding='utf-8-sig')
