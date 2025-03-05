@@ -16,6 +16,7 @@ import os
 
 api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
+print(api_key)
 
 # ====== 뉴스 크롤링 ======
 
