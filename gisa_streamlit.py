@@ -1,8 +1,10 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import time
 
-GITHUB_CSV_URL = "https://raw.githubusercontent.com/lyh9003/yong/main/Total_Filtered_No_Comment.csv"
+GITHUB_CSV_URL = f"https://raw.githubusercontent.com/lyh9003/yong/main/Total_Filtered_No_Comment.csv?nocache={int(time.time())}"
+
 
 def load_data():
     """CSV를 불러와 DataFrame으로 반환합니다."""
