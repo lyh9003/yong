@@ -4,8 +4,6 @@ import datetime
 
 GITHUB_CSV_URL = "https://raw.githubusercontent.com/lyh9003/yong/main/Total_Filtered_No_Comment.csv"
 
-st.rerun()
-
 def load_data():
     """CSV를 불러와 DataFrame으로 반환합니다."""
     df = pd.read_csv(GITHUB_CSV_URL, encoding='utf-8-sig')
