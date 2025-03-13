@@ -5,7 +5,6 @@ import time
 
 GITHUB_CSV_URL = f"https://raw.githubusercontent.com/lyh9003/yong/main/Total_Filtered_No_Comment.csv?nocache={int(time.time())}"
 
-
 def load_data():
     """CSV를 불러와 DataFrame으로 반환합니다."""
     df = pd.read_csv(GITHUB_CSV_URL, encoding='utf-8-sig')
@@ -25,8 +24,10 @@ def load_data():
     df['키워드_목록'] = df['키워드'].apply(split_keywords)
     
     # 4) explode를 이용하여 키워드별로 레코드를 펼침
-    #    → 하나의 기사에 키워드가 여러 개인 경우, 여러 행으로 복제
     df = df.explode('키워드_목록', ignore_index=True)
+    
+    # 5) '관련 없음'을 '기타'로 변경
+    df['키워드_목록'] = df['키워드_목록'].replace('관련 없음', '기타')
     
     return df
 
@@ -48,54 +49,67 @@ else:
 # ======================================================
 st.title("📢 반도체 뉴스 업데이트")
 st.write("yh9003.lee@samsung.com")
+
 # ======================================================
-# 1) 사이드바에서 날짜를 여러 개 선택할 수 있는 필터
+# 1) 사이드바 필터 (날짜 선택)
 # ======================================================
-# 날짜만 추출해서 중복 제거 후 내림차순 정렬
 unique_dates = sorted(list(set(df['date'].dt.date.dropna())), reverse=True)
 
 selected_dates = st.sidebar.multiselect(
-    "날짜를 선택하세요 (복수 선택 가능)",
+    "📅 날짜를 선택하세요 (복수 선택 가능)",
     unique_dates,
     help="아무 것도 선택하지 않으면 최근 1주일치 기사가 표시됩니다."
 )
 
+# ======================================================
+# 2) 키워드 필터 추가 (카테고리 역할, '관련 없음' → '기타')
+# ======================================================
+unique_keywords = sorted(list(df['키워드_목록'].dropna().unique()))
+
+selected_keywords = st.sidebar.multiselect(
+    "🔍 키워드를 선택하세요 (복수 선택 가능)",
+    unique_keywords,
+    help="아무 것도 선택하지 않으면 모든 키워드가 표시됩니다."
+)
+
+# ======================================================
+# 3) 필터 적용 (날짜 + 키워드)
+# ======================================================
+filtered_df = df.copy()
+
 # 날짜 필터 적용
 if selected_dates:
-    display_df = df[df['date'].dt.date.isin(selected_dates)]
+    filtered_df = filtered_df[filtered_df['date'].dt.date.isin(selected_dates)]
 else:
-    display_df = default_recent_df
+    filtered_df = default_recent_df
 
-st.write(f"**총 기사 수:** {len(display_df)}개")
+# 키워드 필터 적용
+if selected_keywords:
+    filtered_df = filtered_df[filtered_df['키워드_목록'].isin(selected_keywords)]
+
+st.write(f"**총 기사 수:** {len(filtered_df)}개")
 
 # ======================================================
-# 2) 날짜별 → 키워드별 → 기사 목록 표시
+# 4) 날짜별 → 키워드별 → 기사 목록 표시
 # ======================================================
-# 날짜(date)만으로 그룹핑(내림차순 유지)
-grouped_by_date = display_df.groupby(display_df['date'].dt.date, sort=False)
+grouped_by_date = filtered_df.groupby(filtered_df['date'].dt.date, sort=False)
 
 for current_date, date_group in grouped_by_date:
     st.markdown(f"## {current_date.strftime('%Y-%m-%d')}")
 
-    # 키워드 기준으로 다시 그룹핑 (날짜 그룹 내부)
     grouped_by_keyword = date_group.groupby('키워드_목록', sort=False)
     
     for keyword_value, keyword_group in grouped_by_keyword:
-        # 키워드가 비어있지 않은 경우에만 표시
         if pd.notna(keyword_value) and str(keyword_value).strip():
             st.markdown(f"### ▶️ {keyword_value}")
         else:
-            # 빈 키워드 그룹 처리
             st.markdown("### ▶️ (키워드 없음)")
         
-        # 해당 키워드에 속한 기사들 표시
         for idx, row in keyword_group.iterrows():
             with st.expander(f"📰 {row['title']}"):
-                # 요약 보기 버튼
                 if st.button(f"요약 보기: {row['title']}", key=f"summary_{idx}"):
                     st.write(row.get('summary', '요약 정보가 없습니다.'))
 
-                # 기사 링크
                 link = row.get('link', None)
                 if pd.notna(link):
                     st.markdown(f"[🔗 기사 링크]({link})")
