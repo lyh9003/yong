@@ -100,8 +100,9 @@ if search_query:
     search_query = search_query.lower()
     filtered_df = filtered_df[
         filtered_df['title'].str.lower().str.contains(search_query, na=False) |
-        filtered_df['summary'].str.lower().str.contains(search_query, na=False)
+        filtered_df['summary'].fillna('').str.lower().str.contains(search_query, na=False)
     ]
+
 
 st.write(f"**총 기사 수:** {len(filtered_df)}개")
 
