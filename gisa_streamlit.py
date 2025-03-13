@@ -3,12 +3,13 @@ import pandas as pd
 import datetime
 import time
 
-from langchain_community.document_loaders import PDFPlumberLoader
+# RAG 관련 라이브러리 임포트
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_community.llms import Ollama
 
+# CSV 파일 URL (GitHub)
 GITHUB_CSV_URL = f"https://raw.githubusercontent.com/lyh9003/yong/main/Total_Filtered_No_Comment.csv?nocache={int(time.time())}"
 
 def load_data():
@@ -130,7 +131,6 @@ grouped_by_date = filtered_df.groupby(filtered_df['date'].dt.date, sort=False)
 
 for current_date, date_group in grouped_by_date:
     st.markdown(f"## {current_date.strftime('%Y-%m-%d')}")
-
     grouped_by_keyword = date_group.groupby('키워드_목록', sort=False)
     
     for keyword_value, keyword_group in grouped_by_keyword:
@@ -140,12 +140,84 @@ for current_date, date_group in grouped_by_date:
             st.markdown("### ▶️ (키워드 없음)")
         
         for idx, row in keyword_group.iterrows():
-            # **제목을 클릭하면 요약 & 링크가 보이도록 변경**
             with st.expander(f"📰 {row['title']}"):
                 st.write(f"**요약:** {row.get('summary', '요약 정보가 없습니다.')}")
-                
                 link = row.get('link', None)
                 if pd.notna(link):
                     st.markdown(f"[🔗 기사 링크]({link})")
                 else:
                     st.write("링크가 없습니다.")
+
+# ======================================================
+# RAG(검색기반 생성) 기능 구현
+# ======================================================
+
+# 캐싱을 통해 벡터스토어 빌드 비용 최소화 (Streamlit 1.18 이상 st.cache_resource 사용)
+@st.cache_resource
+def build_vectorstore(dataframe: pd.DataFrame):
+    """
+    DataFrame의 각 기사에서 제목과 요약을 결합한 텍스트를 생성하고,
+    SemanticChunker로 청크를 만든 후 FAISS 벡터스토어를 생성합니다.
+    """
+    documents = []
+    metadatas = []
+    for _, row in dataframe.iterrows():
+        # 제목과 요약을 결합 (요약이 없으면 제목만 사용)
+        text = row.get('title', '')
+        summary = row.get('summary', '')
+        if pd.notna(summary) and summary.strip():
+            text += "\n" + summary
+        documents.append(text)
+        metadatas.append({
+            "date": row.get("date"),
+            "키워드": row.get("키워드_목록")
+        })
+    
+    # 텍스트가 긴 경우 SemanticChunker를 사용하여 의미 단위로 분할
+    chunker = SemanticChunker()
+    docs_chunks = []
+    docs_metadatas = []
+    for doc, meta in zip(documents, metadatas):
+        chunks = chunker.split_text(doc)
+        docs_chunks.extend(chunks)
+        docs_metadatas.extend([meta] * len(chunks))
+    
+    # 임베딩 계산 (HuggingFaceEmbeddings 사용)
+    embeddings = HuggingFaceEmbeddings()
+    
+    # FAISS 벡터스토어 생성
+    vectorstore = FAISS.from_texts(docs_chunks, embeddings, metadatas=docs_metadatas)
+    return vectorstore
+
+def answer_query(query: str, vectorstore, top_k: int = 3) -> str:
+    """
+    입력된 질의에 대해 벡터스토어에서 유사한 청크들을 검색하고,
+    검색된 문맥을 바탕으로 Ollama LLM이 답변을 생성합니다.
+    """
+    # 관련 문서 검색
+    docs = vectorstore.similarity_search(query, k=top_k)
+    context = "\n".join([doc.page_content for doc in docs])
+    
+    # LLM에 전달할 프롬프트 구성
+    prompt = (
+        f"다음 문맥을 참고하여 질문에 답변하세요:\n\n"
+        f"문맥:\n{context}\n\n"
+        f"질문: {query}\n\n"
+        f"답변:"
+    )
+    
+    # Ollama LLM 호출 (모델 이름은 환경에 맞게 조정)
+    llm = Ollama(model="llama2")
+    answer = llm(prompt)
+    return answer
+
+# RAG용 벡터스토어 생성 (전체 CSV 데이터를 대상으로)
+vectorstore = build_vectorstore(df)
+
+st.markdown("---")
+st.header("🔎 RAG 질의 응답")
+rag_query = st.text_input("RAG 질문을 입력하세요", key="rag_query")
+if rag_query:
+    response = answer_query(rag_query, vectorstore)
+    st.markdown("### 답변:")
+    st.write(response)
