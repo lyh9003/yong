@@ -173,12 +173,14 @@ def build_vectorstore(dataframe: pd.DataFrame):
             "date": row.get("date"),
             "키워드": row.get("키워드_목록")
         })
-    
+        
+    # HuggingFaceEmbeddings를 사용하여 임베딩 계산
+    embeddings = HuggingFaceEmbeddings()    
     # LLM 인스턴스 생성 (온도 등 추가 설정 가능)
     llm_for_chunking = Ollama(model="llama2", temperature=0)
     
     # language_model 인자를 사용하여 SemanticChunker 인스턴스 생성
-    chunker = SemanticChunker(language_model=llm_for_chunking)
+    chunker = SemanticChunker(embeddings)
     
     docs_chunks = []
     docs_metadatas = []
@@ -187,8 +189,7 @@ def build_vectorstore(dataframe: pd.DataFrame):
         docs_chunks.extend(chunks)
         docs_metadatas.extend([meta] * len(chunks))
     
-    # HuggingFaceEmbeddings를 사용하여 임베딩 계산
-    embeddings = HuggingFaceEmbeddings()
+
     
     # FAISS 벡터스토어 생성
     vectorstore = FAISS.from_texts(docs_chunks, embeddings, metadatas=docs_metadatas)
