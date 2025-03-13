@@ -5,8 +5,8 @@ import time
 import openai
 
 # LangChain 관련 라이브러리
-from langchain_community.embeddings import OpenAIEmbeddings
-from langchain_community.vectorstores import FAISS
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import Chroma
 from langchain.docstore.document import Document
 
 # OpenAI API 키 설정 (Streamlit secrets에 등록)
@@ -50,7 +50,7 @@ def check_semiconductor(question):
     """
     prompt = f"다음 질문이 반도체와 관련이 있으면 '예', 아니면 '아니오'로 대답해줘:\n{question}"
     response = openai.Completion.create(
-        model="gpt-4o-mini",
+        model="text-davinci-003",
         prompt=prompt,
         max_tokens=3,
         temperature=0
@@ -64,7 +64,7 @@ def extract_keyword(question):
     """
     prompt = f"다음 질문에서 핵심 키워드를 한 단어로 추출해줘:\n{question}"
     response = openai.Completion.create(
-        model="gpt-4o-mini",
+        model="text-davinci-003",
         prompt=prompt,
         max_tokens=5,
         temperature=0
@@ -77,7 +77,7 @@ def generate_answer_openai(question):
     일반적인 질문에 대해 OpenAI를 활용하여 답변 생성합니다.
     """
     response = openai.Completion.create(
-        model="gpt-4o-mini",
+        model="text-davinci-003",
         prompt=question,
         max_tokens=150,
         temperature=0.7
@@ -90,27 +90,27 @@ def generate_answer_with_rag(question, context):
     """
     prompt = f"주어진 뉴스 기사 내용을 참고하여 아래 질문에 대해 답변을 생성해줘.\n\n뉴스 기사:\n{context}\n\n질문:\n{question}\n\n답변:"
     response = openai.Completion.create(
-        model="gpt-4o-mini",
+        model="text-davinci-003",
         prompt=prompt,
-        max_tokens=300,
+        max_tokens=150,
         temperature=0.7
     )
     return response.choices[0].text.strip()
 
 # ===============================================
-# 뉴스 기사 데이터셋 벡터 스토어 생성 (FAISS)
+# 뉴스 기사 데이터셋 벡터 스토어 생성 (Chroma)
 # ===============================================
 def build_vector_store(df):
     """
     각 기사의 제목과 요약을 하나의 문서로 결합한 후,
-    LangChain의 OpenAIEmbeddings를 이용해 FAISS 벡터 스토어를 구축합니다.
+    LangChain의 OpenAIEmbeddings를 이용해 Chroma 벡터 스토어를 구축합니다.
     """
     documents = []
     for idx, row in df.iterrows():
         content = f"제목: {row['title']}\n요약: {row.get('summary', '요약 정보가 없습니다.')}"
         documents.append(Document(page_content=content, metadata={"키워드": row["키워드_목록"], "date": row["date"]}))
     embeddings = OpenAIEmbeddings()
-    vector_store = FAISS.from_documents(documents, embeddings)
+    vector_store = Chroma.from_documents(documents, embeddings, collection_name="news_articles")
     return vector_store
 
 # 데이터 불러오기
