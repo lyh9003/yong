@@ -170,7 +170,7 @@ def simple_chunker(text, chunk_size=200, overlap=20):
     return chunks
 
 @st.cache_resource
-def build_vectorstore_rule_based(dataframe: pd.DataFrame):
+def build_vectorstore(dataframe: pd.DataFrame):
     """
     DataFrame의 각 기사에서 제목과 요약을 결합한 텍스트를 생성하고,
     simple_chunker를 사용하여 청크를 만든 후 FAISS 벡터스토어를 생성합니다.
