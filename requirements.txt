@@ -5,3 +5,6 @@ datetime
 tqdm
 selenium
 openai
+langchain.embeddings
+langchain.vectorstore
+langchain.docstore.document
