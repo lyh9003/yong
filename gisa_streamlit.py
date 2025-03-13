@@ -47,7 +47,7 @@ else:
 # ======================================================
 # Streamlit 앱 타이틀
 # ======================================================
-st.title("📢 반도체 뉴스레터")
+st.title("📢 반도체 뉴스 업데이트")
 st.write("yh9003.lee@samsung.com")
 
 # ======================================================
@@ -106,10 +106,10 @@ for current_date, date_group in grouped_by_date:
             st.markdown("### ▶️ (키워드 없음)")
         
         for idx, row in keyword_group.iterrows():
-            with st.expander(f"📰 {row['title']}"):
-                if st.button(f"요약 보기: {row['title']}", key=f"summary_{idx}"):
-                    st.write(row.get('summary', '요약 정보가 없습니다.'))
-
+            # 제목을 버튼으로 만들어 클릭 시 요약이 표시되도록 함
+            if st.button(f"📰 {row['title']}", key=f"title_{idx}"):
+                st.write(f"**요약:** {row.get('summary', '요약 정보가 없습니다.')}")
+                
                 link = row.get('link', None)
                 if pd.notna(link):
                     st.markdown(f"[🔗 기사 링크]({link})")
