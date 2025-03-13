@@ -106,11 +106,12 @@ def generate_answer_with_rag(question, context):
 # 뉴스 기사 데이터셋 벡터 스토어 생성 (Chroma)
 # ===============================================
 
-# ChromaDB 저장 경로 설정
-CHROMA_PERSIST_DIR = "/mount/src/chroma_db"  # 또는 "./chroma_db"
+
+CHROMA_PERSIST_DIR = "./chroma_db"  # 상대 경로 사용
 
 # 디렉터리 생성
 os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
+
 
 
 def build_vector_store(df):
