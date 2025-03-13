@@ -73,7 +73,15 @@ selected_keywords = st.sidebar.multiselect(
 )
 
 # ======================================================
-# 3) 필터 적용 (날짜 + 키워드)
+# 3) 검색어 필터 추가 (제목 및 요약 검색)
+# ======================================================
+search_query = st.sidebar.text_input(
+    "🔎 검색어 입력 (제목/요약 포함)",
+    help="특정 단어가 포함된 기사만 검색합니다."
+)
+
+# ======================================================
+# 4) 필터 적용 (날짜 + 키워드 + 검색어)
 # ======================================================
 filtered_df = df.copy()
 
@@ -87,10 +95,18 @@ else:
 if selected_keywords:
     filtered_df = filtered_df[filtered_df['키워드_목록'].isin(selected_keywords)]
 
+# 검색어 필터 적용
+if search_query:
+    search_query = search_query.lower()
+    filtered_df = filtered_df[
+        filtered_df['title'].str.lower().str.contains(search_query, na=False) |
+        filtered_df['summary'].str.lower().str.contains(search_query, na=False)
+    ]
+
 st.write(f"**총 기사 수:** {len(filtered_df)}개")
 
 # ======================================================
-# 4) 날짜별 → 키워드별 → 기사 목록 표시
+# 5) 날짜별 → 키워드별 → 기사 목록 표시
 # ======================================================
 grouped_by_date = filtered_df.groupby(filtered_df['date'].dt.date, sort=False)
 
