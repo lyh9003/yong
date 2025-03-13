@@ -35,14 +35,14 @@ def load_data():
 df = load_data()
 
 # ======================================================
-# 0) 최근 1주일치 필터링을 위한 기본 데이터 준비
+# 날짜 필터링을 위한 기본 데이터 준비
 # ======================================================
 if not df.empty:
     max_date = df['date'].max()
     one_week_ago = max_date - datetime.timedelta(days=7)
-    default_recent_df = df[df['date'] >= one_week_ago]
+    one_month_ago = max_date - datetime.timedelta(days=30)
 else:
-    default_recent_df = df.copy()
+    one_week_ago = one_month_ago = None
 
 # ======================================================
 # Streamlit 앱 타이틀
@@ -51,18 +51,32 @@ st.title("📢반도체 뉴스레터(Rev.25.3.13)")
 st.write("문의/아이디어 : yh9003.lee@samsung.com")
 
 # ======================================================
-# 1) 사이드바 필터 (날짜 선택)
+# 사이드바 날짜 필터 옵션 추가
 # ======================================================
-unique_dates = sorted(list(set(df['date'].dt.date.dropna())), reverse=True)
-
-selected_dates = st.sidebar.multiselect(
-    "📅 날짜를 선택하세요 (복수 선택 가능)",
-    unique_dates,
-    help="아무 것도 선택하지 않으면 최근 1주일치 기사가 표시됩니다."
+date_filter_option = st.sidebar.radio(
+    "📅 날짜 필터 옵션",
+    ["최근 7일", "최근 1달", "전체", "직접 선택"],
+    index=0
 )
 
+unique_dates = sorted(list(set(df['date'].dt.date.dropna())), reverse=True)
+
+# 날짜 필터 옵션 적용
+if date_filter_option == "최근 7일":
+    selected_dates = [date for date in unique_dates if date >= one_week_ago.date()]
+elif date_filter_option == "최근 1달":
+    selected_dates = [date for date in unique_dates if date >= one_month_ago.date()]
+elif date_filter_option == "전체":
+    selected_dates = unique_dates  # 모든 날짜 포함
+else:  # "직접 선택"
+    selected_dates = st.sidebar.multiselect(
+        "📅 날짜를 선택하세요 (복수 선택 가능)",
+        unique_dates,
+        help="필터 옵션에서 '직접 선택'을 선택한 경우에만 활성화됩니다."
+    )
+
 # ======================================================
-# 2) 키워드 필터 추가 (카테고리 역할, '관련 없음' → '기타')
+# 키워드 필터 추가 (카테고리 역할, '관련 없음' → '기타')
 # ======================================================
 unique_keywords = sorted(list(df['키워드_목록'].dropna().unique()))
 
@@ -73,7 +87,7 @@ selected_keywords = st.sidebar.multiselect(
 )
 
 # ======================================================
-# 3) 검색어 필터 추가 (제목 및 요약 검색)
+# 검색어 필터 추가 (제목 및 요약 검색)
 # ======================================================
 search_query = st.sidebar.text_input(
     "🔎 검색어 입력 (제목/요약 포함)",
@@ -81,15 +95,13 @@ search_query = st.sidebar.text_input(
 )
 
 # ======================================================
-# 4) 필터 적용 (날짜 + 키워드 + 검색어)
+# 필터 적용 (날짜 + 키워드 + 검색어)
 # ======================================================
 filtered_df = df.copy()
 
 # 날짜 필터 적용
 if selected_dates:
     filtered_df = filtered_df[filtered_df['date'].dt.date.isin(selected_dates)]
-else:
-    filtered_df = default_recent_df
 
 # 키워드 필터 적용
 if selected_keywords:
@@ -106,7 +118,7 @@ if search_query:
 st.write(f"**총 기사 수:** {len(filtered_df)}개")
 
 # ======================================================
-# 5) 날짜별 → 키워드별 → 기사 목록 표시 (제목 클릭 시 요약 & 링크 표시)
+# 날짜별 → 키워드별 → 기사 목록 표시 (제목 클릭 시 요약 & 링크 표시)
 # ======================================================
 grouped_by_date = filtered_df.groupby(filtered_df['date'].dt.date, sort=False)
 
