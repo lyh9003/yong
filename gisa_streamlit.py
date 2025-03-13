@@ -154,16 +154,31 @@ for current_date, date_group in grouped_by_date:
 
 # 캐싱을 통해 벡터스토어 빌드 비용 최소화 (Streamlit 1.18 이상 st.cache_resource 사용)
 # RAG용 벡터스토어 생성 함수 내 수정 예시
+def simple_chunker(text, chunk_size=200, overlap=20):
+    """
+    간단한 규칙 기반 텍스트 청킹 함수.
+    text를 단어 단위로 나누고, chunk_size 단어씩 오버랩을 포함해 청크를 생성합니다.
+    """
+    words = text.split()
+    chunks = []
+    start = 0
+    while start < len(words):
+        end = min(start + chunk_size, len(words))
+        chunk = " ".join(words[start:end])
+        chunks.append(chunk)
+        start += chunk_size - overlap  # 오버랩 적용하여 다음 시작점 결정
+    return chunks
+
 @st.cache_resource
-def build_vectorstore(dataframe: pd.DataFrame):
+def build_vectorstore_rule_based(dataframe: pd.DataFrame):
     """
     DataFrame의 각 기사에서 제목과 요약을 결합한 텍스트를 생성하고,
-    SemanticChunker로 청크를 만든 후 FAISS 벡터스토어를 생성합니다.
+    simple_chunker를 사용하여 청크를 만든 후 FAISS 벡터스토어를 생성합니다.
     """
     documents = []
     metadatas = []
     for _, row in dataframe.iterrows():
-        # 제목과 요약을 결합 (요약이 없으면 제목만 사용)
+        # 제목과 요약 결합 (요약이 없으면 제목만 사용)
         text = row.get('title', '')
         summary = row.get('summary', '')
         if pd.notna(summary) and summary.strip():
@@ -173,23 +188,17 @@ def build_vectorstore(dataframe: pd.DataFrame):
             "date": row.get("date"),
             "키워드": row.get("키워드_목록")
         })
-        
-    # HuggingFaceEmbeddings를 사용하여 임베딩 계산
-    embeddings = HuggingFaceEmbeddings()    
-    
-    # language_model 인자를 사용하여 SemanticChunker 인스턴스 생성
-    chunker = SemanticChunker(embeddings)
-    
+
+    # 단순 규칙 기반 청킹 적용
     docs_chunks = []
     docs_metadatas = []
     for doc, meta in zip(documents, metadatas):
-        chunks = chunker.split_text(doc)
+        chunks = simple_chunker(doc, chunk_size=200, overlap=20)
         docs_chunks.extend(chunks)
         docs_metadatas.extend([meta] * len(chunks))
     
-
-    
-    # FAISS 벡터스토어 생성
+    # 임베딩 계산 및 FAISS 벡터스토어 생성
+    embeddings = HuggingFaceEmbeddings()    
     vectorstore = FAISS.from_texts(docs_chunks, embeddings, metadatas=docs_metadatas)
     return vectorstore
 
