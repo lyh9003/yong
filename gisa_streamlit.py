@@ -176,8 +176,6 @@ def build_vectorstore(dataframe: pd.DataFrame):
         
     # HuggingFaceEmbeddings를 사용하여 임베딩 계산
     embeddings = HuggingFaceEmbeddings()    
-    # LLM 인스턴스 생성 (온도 등 추가 설정 가능)
-    llm_for_chunking = Ollama(model="llama2", temperature=0)
     
     # language_model 인자를 사용하여 SemanticChunker 인스턴스 생성
     chunker = SemanticChunker(embeddings)
