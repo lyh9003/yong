@@ -55,7 +55,7 @@ def check_semiconductor(question):
     """
     prompt = f"다음 질문이 반도체와 관련이 있으면 '예', 아니면 '아니오'로 대답해줘:\n{question}"
     response = openai.Completion.create(
-        model="text-davinci-003",
+        model="GPT-4o-mini",
         prompt=prompt,
         max_tokens=3,
         temperature=0
@@ -69,7 +69,7 @@ def extract_keyword(question):
     """
     prompt = f"다음 질문에서 핵심 키워드를 한 단어로 추출해줘:\n{question}"
     response = openai.Completion.create(
-        model="text-davinci-003",
+        model="GPT-4o-mini",
         prompt=prompt,
         max_tokens=5,
         temperature=0
@@ -82,7 +82,7 @@ def generate_answer_openai(question):
     일반적인 질문에 대해 OpenAI를 활용하여 답변 생성합니다.
     """
     response = openai.Completion.create(
-        model="text-davinci-003",
+        model="GPT-4o-mini",
         prompt=question,
         max_tokens=150,
         temperature=0.7
@@ -95,7 +95,7 @@ def generate_answer_with_rag(question, context):
     """
     prompt = f"주어진 뉴스 기사 내용을 참고하여 아래 질문에 대해 답변을 생성해줘.\n\n뉴스 기사:\n{context}\n\n질문:\n{question}\n\n답변:"
     response = openai.Completion.create(
-        model="text-davinci-003",
+        model="GPT-4o-mini",
         prompt=prompt,
         max_tokens=150,
         temperature=0.7
@@ -105,6 +105,14 @@ def generate_answer_with_rag(question, context):
 # ===============================================
 # 뉴스 기사 데이터셋 벡터 스토어 생성 (Chroma)
 # ===============================================
+
+# ChromaDB 저장 경로 설정
+CHROMA_PERSIST_DIR = "/mount/src/chroma_db"  # 또는 "./chroma_db"
+
+# 디렉터리 생성
+os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
+
+
 def build_vector_store(df):
     """
     각 기사의 제목과 요약을 하나의 문서로 결합한 후,
@@ -115,7 +123,12 @@ def build_vector_store(df):
         content = f"제목: {row['title']}\n요약: {row.get('summary', '요약 정보가 없습니다.')}"
         documents.append(Document(page_content=content, metadata={"키워드": row["키워드_목록"], "date": row["date"]}))
     embeddings = OpenAIEmbeddings()
-    vector_store = Chroma.from_documents(documents, embeddings, collection_name="news_articles")
+    vector_store = Chroma.from_documents(
+        documents,
+        embeddings,
+        collection_name="news_articles",
+        persist_directory=CHROMA_PERSIST_DIR  # 추가 설정
+    )
     return vector_store
 
 # 데이터 불러오기
