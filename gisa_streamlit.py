@@ -3,7 +3,12 @@ import pandas as pd
 import datetime
 import time
 import openai
+import pysqlite3
+import sys
 
+sys.modules['sqlite3'] = pysqlite3  # sqlite3 모듈을 최신 버전으로 교체
+
+import sqlite3  # 이제 최신 sqlite3 사용 가능
 # LangChain 관련 라이브러리
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import Chroma
