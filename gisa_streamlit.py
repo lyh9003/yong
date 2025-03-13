@@ -2,102 +2,184 @@ import streamlit as st
 import pandas as pd
 import datetime
 import time
-import openai  # 필요시 다른 API 설정에도 활용 가능
 
-# 새 라이브러리 임포트
+# RAG 관련 라이브러리 임포트
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_chroma import Chroma
-from langchain_ollama import ChatOllama, OllamaEmbeddings
-from langchain_core.documents import Document
-from langchain_core.prompts import ChatPromptTemplate
-from langchain.retrievers.document_compressors import CrossEncoderReranker
-from langchain_community.cross_encoders import HuggingFaceCrossEncoder
-from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
-
-# 기존 텍스트 분할 도구 (필요시 계속 사용)
-from langchain.text_splitter import CharacterTextSplitter
-
-# OpenAI API 키 설정 (다른 API 키가 필요한 경우 변경)
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 GITHUB_CSV_URL = f"https://raw.githubusercontent.com/lyh9003/yong/main/Total_Filtered_No_Comment.csv?nocache={int(time.time())}"
 
 def load_data():
     """CSV를 불러와 DataFrame으로 반환합니다."""
     df = pd.read_csv(GITHUB_CSV_URL, encoding='utf-8-sig')
+    
+    # 1) 날짜 컬럼을 datetime 형식으로 변환
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
+    
+    # 2) 내림차순 정렬 (가장 최근 기사가 위로)
     df = df.sort_values(by='date', ascending=False)
-    df['키워드_목록'] = df['키워드'].apply(lambda x: [k.strip() for k in str(x).split(',')] if pd.notna(x) else [])
+    
+    # 3) '키워드' 컬럼을 쉼표 기준으로 분할하여 리스트화
+    def split_keywords(kw_string):
+        if pd.isna(kw_string):
+            return []
+        return [k.strip() for k in kw_string.split(',') if k.strip()]
+    
+    df['키워드_목록'] = df['키워드'].apply(split_keywords)
+    
+    # 4) explode를 이용하여 키워드별로 레코드를 펼침
+    df = df.explode('키워드_목록', ignore_index=True)
+    
+    # 5) '관련 없음'을 '기타'로 변경
+    df['키워드_목록'] = df['키워드_목록'].replace('관련 없음', '기타')
+    
     return df
 
-def create_vector_db(df):
-    """Chroma 벡터 저장소를 생성합니다."""
-    df = df.dropna(subset=['title', 'summary'])
-    df['content'] = df['title'] + "\n" + df['summary']
-    
-    # DataFrame의 각 행을 Document 객체로 변환
-    documents = [
-        Document(page_content=row['content'], metadata=row.to_dict())
-        for idx, row in df.iterrows()
-    ]
-    
-    # 텍스트 분할 (chunking)
-    text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    split_docs = text_splitter.split_documents(documents)
-    
-    # OllamaEmbeddings를 사용하여 임베딩 생성 후, Chroma 벡터 저장소 구축
-    embeddings = OllamaEmbeddings()
-    vector_db = Chroma.from_documents(split_docs, embeddings)
-    return vector_db
-
-def query_rag(vector_db, query):
-    """새 라이브러리를 사용하여 RAG 기반 뉴스 기사 요약을 생성합니다."""
-    # 1. 벡터 저장소에서 관련 문서 검색 (예: 상위 5개)
-    retriever = vector_db.as_retriever(search_kwargs={"k": 5})
-    retrieved_docs = retriever.get_relevant_documents(query)
-    
-    # 2. CrossEncoder를 이용해 문서 재정렬 (HuggingFace 모델 사용)
-    cross_encoder = HuggingFaceCrossEncoder(model_name="cross-encoder/ms-marco-MiniLM-L-6-v2")
-    reranker = CrossEncoderReranker(cross_encoder=cross_encoder)
-    reranked_docs = reranker.rerank(query, retrieved_docs)
-    
-    # 3. 재정렬된 문서들의 내용을 하나의 컨텍스트로 결합
-    context = "\n\n".join([doc.page_content for doc in reranked_docs])
-    
-    # 4. ChatPromptTemplate을 사용하여 프롬프트 구성
-    prompt_template = ChatPromptTemplate.from_messages([
-        ("system", "You are a helpful assistant that summarizes news articles based on provided context."),
-        ("user", "Given the following context:\n{context}\n\nPlease summarize the key points answering: {query}")
-    ])
-    prompt = prompt_template.format(context=context, query=query)
-    
-    # 5. ChatOllama를 사용하여 답변 생성 (예시로 'llama2' 모델 사용)
-    llm = ChatOllama(model="llama2", temperature=0.3)
-    response = llm(prompt)
-    return response
-
-# Streamlit UI 설정
+# 데이터 불러오기
 df = load_data()
-vector_db = create_vector_db(df)
 
-st.title("📢 반도체 뉴스 RAG 기반 검색")
+# =============================================================================
+# RAG를 위한 벡터 스토어 생성 함수 (캐싱 처리)
+# =============================================================================
+@st.cache_resource
+def create_vector_store(dataframe):
+    # 각 기사에서 제목과 요약을 결합하여 텍스트 문서를 생성합니다.
+    texts = []
+    for _, row in dataframe.iterrows():
+        title = row.get('title', '')
+        summary = row.get('summary', '')
+        combined_text = f"제목: {title}\n요약: {summary}"
+        texts.append(combined_text)
+    
+    # 문서의 길이가 길 경우를 대비해 텍스트 분할기를 사용합니다.
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+    split_texts = []
+    for text in texts:
+        split_texts.extend(text_splitter.split_text(text))
+    
+    # OpenAI 임베딩을 사용하여 Chroma 벡터 스토어 생성 (persist_directory를 None으로 하여 메모리 내 저장)
+    embeddings = OpenAIEmbeddings()
+    vector_store = Chroma.from_texts(split_texts, embedding=embeddings, persist_directory=None)
+    return vector_store
+
+# =============================================================================
+# 날짜 필터링을 위한 기본 데이터 준비
+# =============================================================================
+if not df.empty:
+    max_date = df['date'].max()
+    one_week_ago = max_date - datetime.timedelta(days=7)
+    one_month_ago = max_date - datetime.timedelta(days=30)
+else:
+    one_week_ago = one_month_ago = None
+
+# =============================================================================
+# Streamlit 앱 타이틀
+# =============================================================================
+st.title("📢반도체 뉴스레터(Rev.25.3.13)")
 st.write("문의/아이디어 : yh9003.lee@samsung.com")
 
-# 사용자 입력
-query = st.text_input("🔍 검색할 내용을 입력하세요:")
-if query:
-    with st.spinner("🔎 검색 중..."):
-        response = query_rag(vector_db, query)
-    st.markdown("### 📜 검색 결과 요약")
-    st.write(response)
+# =============================================================================
+# 사이드바 필터 옵션 설정 (날짜, 키워드, 검색어)
+# =============================================================================
+date_filter_option = st.sidebar.radio(
+    "📅 날짜 필터 옵션",
+    ["최근 7일", "최근 1달", "전체", "직접 선택"],
+    index=0
+)
 
-# 기본적인 뉴스 리스트 출력
-st.write(f"**총 기사 수:** {len(df)}개")
-grouped_by_date = df.groupby(df['date'].dt.date, sort=False)
+unique_dates = sorted(list(set(df['date'].dt.date.dropna())), reverse=True)
+
+if date_filter_option == "최근 7일":
+    selected_dates = [date for date in unique_dates if date >= one_week_ago.date()]
+elif date_filter_option == "최근 1달":
+    selected_dates = [date for date in unique_dates if date >= one_month_ago.date()]
+elif date_filter_option == "전체":
+    selected_dates = unique_dates
+else:  # "직접 선택"
+    selected_dates = st.sidebar.multiselect(
+        "📅 날짜를 선택하세요 (복수 선택 가능)",
+        unique_dates,
+        help="필터 옵션에서 '직접 선택'을 선택한 경우에만 활성화됩니다."
+    )
+
+unique_keywords = sorted(list(df['키워드_목록'].dropna().unique()))
+selected_keywords = st.sidebar.multiselect(
+    "🔍 키워드를 선택하세요 (복수 선택 가능)",
+    unique_keywords,
+    help="아무 것도 선택하지 않으면 모든 키워드가 표시됩니다."
+)
+
+search_query = st.sidebar.text_input(
+    "🔎 검색어 입력 (제목/요약 포함)",
+    help="특정 단어가 포함된 기사만 검색합니다."
+)
+
+# =============================================================================
+# 필터 적용 (날짜 + 키워드 + 검색어)
+# =============================================================================
+filtered_df = df.copy()
+
+if selected_dates:
+    filtered_df = filtered_df[filtered_df['date'].dt.date.isin(selected_dates)]
+
+if selected_keywords:
+    filtered_df = filtered_df[filtered_df['키워드_목록'].isin(selected_keywords)]
+
+if search_query:
+    search_query_lower = search_query.lower()
+    filtered_df = filtered_df[
+        filtered_df['title'].str.lower().str.contains(search_query_lower, na=False) |
+        filtered_df['summary'].fillna('').str.lower().str.contains(search_query_lower, na=False)
+    ]
+
+st.write(f"**총 기사 수:** {len(filtered_df)}개")
+
+# =============================================================================
+# 날짜별 → 키워드별 → 기사 목록 표시 (제목 클릭 시 요약 & 링크 표시)
+# =============================================================================
+grouped_by_date = filtered_df.groupby(filtered_df['date'].dt.date, sort=False)
+
 for current_date, date_group in grouped_by_date:
     st.markdown(f"## {current_date.strftime('%Y-%m-%d')}")
-    for idx, row in date_group.iterrows():
-        with st.expander(f"📰 {row['title']}"):
-            st.write(f"**요약:** {row.get('summary', '요약 정보가 없습니다.')}")
-            link = row.get('link', None)
-            if pd.notna(link):
-                st.markdown(f"[🔗 기사 링크]({link})")
+    grouped_by_keyword = date_group.groupby('키워드_목록', sort=False)
+    
+    for keyword_value, keyword_group in grouped_by_keyword:
+        if pd.notna(keyword_value) and str(keyword_value).strip():
+            st.markdown(f"### ▶️ {keyword_value}")
+        else:
+            st.markdown("### ▶️ (키워드 없음)")
+        
+        for idx, row in keyword_group.iterrows():
+            with st.expander(f"📰 {row['title']}"):
+                st.write(f"**요약:** {row.get('summary', '요약 정보가 없습니다.')}")
+                link = row.get('link', None)
+                if pd.notna(link):
+                    st.markdown(f"[🔗 기사 링크]({link})")
+                else:
+                    st.write("링크가 없습니다.")
+
+# =============================================================================
+# RAG (Retrieval-Augmented Generation) 기능 추가
+# =============================================================================
+st.markdown("## 🤖 RAG 질문하기")
+rag_question = st.text_input("기사 내용에 대해 질문을 입력하세요", key="rag_question")
+
+if rag_question:
+    with st.spinner("답변 생성 중..."):
+        # 전체 기사 데이터를 기반으로 벡터 스토어 생성 (캐싱되어 있음)
+        vector_store = create_vector_store(df)
+        
+        # 사용자의 질문과 유사한 문서 조각 3개를 검색합니다.
+        retrieved_docs = vector_store.similarity_search(rag_question, k=3)
+        context = "\n\n".join([doc.page_content for doc in retrieved_docs])
+        
+        # ChatGPT에 전달할 프롬프트 구성 (문맥 정보 + 질문)
+        prompt = f"다음 기사 정보들을 참고하여 질문에 답변하세요:\n\n{context}\n\n질문: {rag_question}\n답변:"
+        
+        chat = ChatOpenAI(temperature=0.7)
+        response = chat([{"role": "user", "content": prompt}])
+        answer = response.content
+        
+    st.markdown("### 답변")
+    st.write(answer)
