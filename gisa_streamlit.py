@@ -106,7 +106,7 @@ if search_query:
 st.write(f"**총 기사 수:** {len(filtered_df)}개")
 
 # ======================================================
-# 5) 날짜별 → 키워드별 → 기사 목록 표시 (요약 기본 표시)
+# 5) 날짜별 → 키워드별 → 기사 목록 표시 (제목 클릭 시 요약 & 링크 표시)
 # ======================================================
 grouped_by_date = filtered_df.groupby(filtered_df['date'].dt.date, sort=False)
 
@@ -122,16 +122,12 @@ for current_date, date_group in grouped_by_date:
             st.markdown("### ▶️ (키워드 없음)")
         
         for idx, row in keyword_group.iterrows():
-            # 기사 제목 (클릭 없이 기본 표시)
-            st.markdown(f"**📰 {row['title']}**")
-
-            # **수정된 부분**: 요약을 기본 표시
-            st.write(f"**요약:** {row.get('summary', '요약 정보가 없습니다.')}")
-
-            # 기사 링크
-            link = row.get('link', None)
-            if pd.notna(link):
-                st.markdown(f"[🔗 기사 링크]({link})")
-            else:
-                st.write("링크가 없습니다.")
-
+            # **제목을 클릭하면 요약 & 링크가 보이도록 변경**
+            with st.expander(f"📰 {row['title']}"):
+                st.write(f"**요약:** {row.get('summary', '요약 정보가 없습니다.')}")
+                
+                link = row.get('link', None)
+                if pd.notna(link):
+                    st.markdown(f"[🔗 기사 링크]({link})")
+                else:
+                    st.write("링크가 없습니다.")
