@@ -5,7 +5,7 @@ import time
 import openai
 import pysqlite3
 import sys
-
+import os
 sys.modules['sqlite3'] = pysqlite3  # sqlite3 모듈을 최신 버전으로 교체
 
 import sqlite3  # 이제 최신 sqlite3 사용 가능
