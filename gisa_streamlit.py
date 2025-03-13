@@ -47,7 +47,7 @@ else:
 # ======================================================
 # Streamlit 앱 타이틀
 # ======================================================
-st.title("📢 반도체 뉴스레터(Rev/25.3.13)")
+st.title("📢 반도체 뉴스 업데이트")
 st.write("yh9003.lee@samsung.com")
 
 # ======================================================
@@ -95,7 +95,7 @@ else:
 if selected_keywords:
     filtered_df = filtered_df[filtered_df['키워드_목록'].isin(selected_keywords)]
 
-# 검색어 필터 적용
+# 검색어 필터 적용 (제목 + 요약)
 if search_query:
     search_query = search_query.lower()
     filtered_df = filtered_df[
@@ -103,11 +103,10 @@ if search_query:
         filtered_df['summary'].fillna('').str.lower().str.contains(search_query, na=False)
     ]
 
-
 st.write(f"**총 기사 수:** {len(filtered_df)}개")
 
 # ======================================================
-# 5) 날짜별 → 키워드별 → 기사 목록 표시
+# 5) 날짜별 → 키워드별 → 기사 목록 표시 (요약 기본 표시)
 # ======================================================
 grouped_by_date = filtered_df.groupby(filtered_df['date'].dt.date, sort=False)
 
@@ -123,12 +122,16 @@ for current_date, date_group in grouped_by_date:
             st.markdown("### ▶️ (키워드 없음)")
         
         for idx, row in keyword_group.iterrows():
-            # 제목을 버튼으로 만들어 클릭 시 요약이 표시되도록 함
-            if st.button(f"📰 {row['title']}", key=f"title_{idx}"):
-                st.write(f"**요약:** {row.get('summary', '요약 정보가 없습니다.')}")
-                
-                link = row.get('link', None)
-                if pd.notna(link):
-                    st.markdown(f"[🔗 기사 링크]({link})")
-                else:
-                    st.write("링크가 없습니다.")
+            # 기사 제목 (클릭 없이 기본 표시)
+            st.markdown(f"**📰 {row['title']}**")
+
+            # **수정된 부분**: 요약을 기본 표시
+            st.write(f"**요약:** {row.get('summary', '요약 정보가 없습니다.')}")
+
+            # 기사 링크
+            link = row.get('link', None)
+            if pd.notna(link):
+                st.markdown(f"[🔗 기사 링크]({link})")
+            else:
+                st.write("링크가 없습니다.")
+
