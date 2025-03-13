@@ -3,6 +3,12 @@ import pandas as pd
 import datetime
 import time
 
+from langchain_community.document_loaders import PDFPlumberLoader
+from langchain_experimental.text_splitter import SemanticChunker
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_community.llms import Ollama
+
 GITHUB_CSV_URL = f"https://raw.githubusercontent.com/lyh9003/yong/main/Total_Filtered_No_Comment.csv?nocache={int(time.time())}"
 
 def load_data():
