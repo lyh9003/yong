@@ -10,4 +10,4 @@ langchain_community
 langchain_chroma
 langchain_openai
 langchain
-
+os
