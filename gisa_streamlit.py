@@ -5,8 +5,8 @@ import time
 import openai
 
 # LangChain 관련 라이브러리
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
 from langchain.docstore.document import Document
 
 # OpenAI API 키 설정 (Streamlit secrets에 등록)
