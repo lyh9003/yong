@@ -5,6 +5,7 @@ datetime
 tqdm
 selenium
 openai
+faiss
 langchain-community
 langchain-openai
 langchain
