@@ -5,7 +5,9 @@ datetime
 tqdm
 selenium
 openai
-langchain-community
-langchain-openai
+langchain_community
+langchain_chroma
+langchain_openai
 langchain
+pysqlite3-binary
 chromadb
