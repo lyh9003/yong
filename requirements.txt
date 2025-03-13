@@ -5,6 +5,7 @@ datetime
 tqdm
 selenium
 openai
+pysqlite3-binary
 langchain_community
 langchain_chroma
 langchain_openai
