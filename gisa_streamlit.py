@@ -174,10 +174,12 @@ def build_vectorstore(dataframe: pd.DataFrame):
             "키워드": row.get("키워드_목록")
         })
     
-    # LLM 인스턴스를 chunker용으로 생성 (온도나 기타 파라미터는 필요에 맞게 조정)
-    llm_for_chunking = Ollama(model="llama2", temperature=0)
-    # 필요한 인자를 전달하여 SemanticChunker 초기화 (예: chunk_size, chunk_overlap 등)
-    chunker = SemanticChunker(llm=llm_for_chunking, chunk_size=512, chunk_overlap=50)
+        # LLM 인스턴스 생성 (필요한 경우 온도 등 추가 설정)
+        llm_for_chunking = Ollama(model="llama2", temperature=0)
+        
+        # 인자 없이 기본 SemanticChunker 인스턴스 생성
+        chunker = SemanticChunker(llm=llm_for_chunking)
+
     
     docs_chunks = []
     docs_metadatas = []
