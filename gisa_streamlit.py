@@ -48,7 +48,7 @@ else:
 # Streamlit 앱 타이틀
 # ======================================================
 st.title("📢반도체 뉴스레터(Rev.25.3.13)")
-st.write("문의/아이디어 : yh9003.lee@samsung.com")
+st.write("주소 이전 : https://semi-news.streamlit.app/")
 
 # ======================================================
 # 사이드바 날짜 필터 옵션 추가
@@ -116,30 +116,3 @@ if search_query:
     ]
 
 st.write(f"**총 기사 수:** {len(filtered_df)}개")
-
-# ======================================================
-# 날짜별 → 키워드별 → 기사 목록 표시 (제목 클릭 시 요약 & 링크 표시)
-# ======================================================
-grouped_by_date = filtered_df.groupby(filtered_df['date'].dt.date, sort=False)
-
-for current_date, date_group in grouped_by_date:
-    st.markdown(f"## {current_date.strftime('%Y-%m-%d')}")
-
-    grouped_by_keyword = date_group.groupby('키워드_목록', sort=False)
-    
-    for keyword_value, keyword_group in grouped_by_keyword:
-        if pd.notna(keyword_value) and str(keyword_value).strip():
-            st.markdown(f"### ▶️ {keyword_value}")
-        else:
-            st.markdown("### ▶️ (키워드 없음)")
-        
-        for idx, row in keyword_group.iterrows():
-            # **제목을 클릭하면 요약 & 링크가 보이도록 변경**
-            with st.expander(f"📰 {row['title']}"):
-                st.write(f"**요약:** {row.get('summary', '요약 정보가 없습니다.')}")
-                
-                link = row.get('link', None)
-                if pd.notna(link):
-                    st.markdown(f"[🔗 기사 링크]({link})")
-                else:
-                    st.write("링크가 없습니다.")
