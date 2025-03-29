@@ -34,3 +34,5 @@ def load_data():
 # 데이터 불러오기
 df = load_data()
 
+st.title("📢반도체 뉴스레터(Rev.25.3.13)")
+st.write("주소 이전 : https://semi-news.streamlit.app/")
