@@ -83,11 +83,14 @@ def news_attrs_crawler(articles, attrs):
 
 MOBILE_NEWS_PREFIX = "https://n.news.naver.com/mnews/article/"
 
-# ‘가로-레이아웃 프로필’ 블록 내부의 모바일 뉴스 링크만 찾는 CSS 선택자
+# ⬇️ 6 개 클래스 모두 포함한 컨테이너 + 모바일 뉴스 링크 선택자
 CONTAINER_SELECTOR = (
-    "div.sds-comps-horizontal-layout."
-    "sds-comps-full-layout."
-    "sds-comps-profile "
+    "div.sds-comps-horizontal-layout"
+    ".sds-comps-full-layout"
+    ".sds-comps-profile"
+    ".type-basic"
+    ".size-lg"
+    ".title-color-g10 "
     f"a[href^='{MOBILE_NEWS_PREFIX}']"
 )
 
@@ -139,7 +142,7 @@ start_date = (datetime.datetime.now() - datetime.timedelta(days=31)).strftime("%
 
 # 시작 및 종료 페이지 설정
 start_pg = 1
-end_pg = 3  # 원하는 페이지 범위로 설정하세요.
+end_pg = 2  # 원하는 페이지 범위로 설정하세요.
 
 # URL 생성
 #headers = {
