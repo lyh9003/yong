@@ -81,15 +81,37 @@ def news_attrs_crawler(articles, attrs):
 #    url = news_attrs_crawler(url_naver, 'href')
 #    return url
 
-def articles_crawler(url):
-    original_html = requests.get(url, headers=headers)
-  
-    
-    html = BeautifulSoup(original_html.text, "html.parser")
-    url_naver = html.select(
-        "div.group_news > ul.list_news > li div.news_area > div.news_info > div.info_group > a.info")
-    url = news_attrs_crawler(url_naver, 'href')
-    return url
+MOBILE_NEWS_PREFIX = "https://n.news.naver.com/mnews/article/"
+
+# 뉴스 링크 크롤링
+def articles_crawler(search_page_url: str) -> list[str]:
+    """
+    네이버 통합검색(뉴스 탭) 결과 페이지에서
+    모바일 뉴스 URL을 모두 추출해 리스트로 반환한다.
+    중복 URL은 하나로 합친다.
+    """
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/122.0.0.0 Safari/537.36"
+        ),
+        "Referer": "https://www.naver.com/",
+    }
+
+    resp = requests.get(search_page_url, headers=headers, timeout=10)
+    resp.raise_for_status()                     # 오류 페이지 방지
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # 1) a 태그 중에서 href가 MOBILE_NEWS_PREFIX로 시작하는 것만 수집
+    link_elems = soup.select(f"a[href^='{MOBILE_NEWS_PREFIX}']")
+
+    # 2) 쿼리스트링(? 이후) 제거 & 중복 제거
+    links = {
+        a["href"].split("?", 1)[0] for a in link_elems if a.get("href")
+    }
+
+    return list(links)
 
 def makeList(newlist, content):
     for i in content:
@@ -115,7 +137,7 @@ start_date = (datetime.datetime.now() - datetime.timedelta(days=31)).strftime("%
 
 # 시작 및 종료 페이지 설정
 start_pg = 1
-end_pg = 2  # 원하는 페이지 범위로 설정하세요.
+end_pg = 5  # 원하는 페이지 범위로 설정하세요.
 
 # URL 생성
 #headers = {
