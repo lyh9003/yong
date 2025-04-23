@@ -83,12 +83,18 @@ def news_attrs_crawler(articles, attrs):
 
 MOBILE_NEWS_PREFIX = "https://n.news.naver.com/mnews/article/"
 
-# 뉴스 링크 크롤링
+# ‘가로-레이아웃 프로필’ 블록 내부의 모바일 뉴스 링크만 찾는 CSS 선택자
+CONTAINER_SELECTOR = (
+    "div.sds-comps-horizontal-layout."
+    "sds-comps-full-layout."
+    "sds-comps-profile "
+    f"a[href^='{MOBILE_NEWS_PREFIX}']"
+)
+
 def articles_crawler(search_page_url: str) -> list[str]:
     """
     네이버 통합검색(뉴스 탭) 결과 페이지에서
-    모바일 뉴스 URL을 모두 추출해 리스트로 반환한다.
-    중복 URL은 하나로 합친다.
+    특정 레이아웃 블록 안에 있는 모바일 뉴스 URL을 반환한다.
     """
     headers = {
         "User-Agent": (
@@ -99,19 +105,15 @@ def articles_crawler(search_page_url: str) -> list[str]:
         "Referer": "https://www.naver.com/",
     }
 
-    resp = requests.get(search_page_url, headers=headers, timeout=10)
-    resp.raise_for_status()                     # 오류 페이지 방지
-    soup = BeautifulSoup(resp.text, "html.parser")
+    html = requests.get(search_page_url, headers=headers, timeout=10).text
+    soup = BeautifulSoup(html, "html.parser")
 
-    # 1) a 태그 중에서 href가 MOBILE_NEWS_PREFIX로 시작하는 것만 수집
-    link_elems = soup.select(f"a[href^='{MOBILE_NEWS_PREFIX}']")
-
-    # 2) 쿼리스트링(? 이후) 제거 & 중복 제거
+    # set → 중복 제거, split("?") → 쿼리스트링 제거
     links = {
-        a["href"].split("?", 1)[0] for a in link_elems if a.get("href")
+        a["href"].split("?", 1)[0]
+        for a in soup.select(CONTAINER_SELECTOR)
     }
-
-    return list(links)
+    return sorted(links)
 
 def makeList(newlist, content):
     for i in content:
