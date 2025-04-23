@@ -137,7 +137,7 @@ start_date = (datetime.datetime.now() - datetime.timedelta(days=31)).strftime("%
 
 # 시작 및 종료 페이지 설정
 start_pg = 1
-end_pg = 5  # 원하는 페이지 범위로 설정하세요.
+end_pg = 3  # 원하는 페이지 범위로 설정하세요.
 
 # URL 생성
 #headers = {
