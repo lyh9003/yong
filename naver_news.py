@@ -252,7 +252,7 @@ for search in keywords:
         try:
             # OpenAI API 호출
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-nano",
                 messages=[
                     {"role": "system", "content": "당신은 기사 제목이 '반도체'와 관련이 있는지 판단하는 도우미입니다."},
                     {"role": "user", "content": prompt}
@@ -322,7 +322,7 @@ for search in keywords:
 
         try:
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-nano",
                 messages=[
                     {"role": "system", "content": "당신은 기사 제목과 키워드 목록을 비교하여 관련된 키워드를 찾아주는 도우미입니다."},
                     {"role": "user", "content": prompt}
@@ -397,7 +397,7 @@ for search in keywords:
                 {"role": "user", "content": prompt}
             ]
             completion = client.chat.completions.create(
-                model="gpt-4o-mini",  # 또는 "gpt-3.5-turbo"
+                model="gpt-4.1-nano",  # 또는 "gpt-3.5-turbo"
                 messages=messages
             )
             # GPT 응답 처리
@@ -471,7 +471,7 @@ for search in keywords:
             
             prompt = f"다음 기사를 200자 이내로 요약해주세요:\n\n{text}"
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-nano",
                 messages=[
                     {"role": "system", "content": "당신은 뉴스 기사를 요약하는 도우미입니다."},
                     {"role": "user", "content": prompt}
@@ -535,7 +535,7 @@ def group_similar_titles(titles):
                 {"role": "user", "content": prompt}
             ]
             completion = client.chat.completions.create(
-                model="gpt-4o-mini",  # 또는 "gpt-3.5-turbo"
+                model="gpt-4.1-nano",  # 또는 "gpt-3.5-turbo"
                 messages=messages
             )
             # GPT 응답 처리
