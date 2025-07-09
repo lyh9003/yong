@@ -127,7 +127,7 @@ def makeList(newlist, content):
 
 
 # 키워드 파일 불러오기
-keyword_df = pd.read_csv('keyword_org.csv', encoding='cp949')
+keyword_df = pd.read_csv('keyword_org.csv', encoding='utf-8-sig')
 keywords = keyword_df['키워드'].unique().tolist()
 
 
