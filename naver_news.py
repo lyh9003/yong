@@ -230,6 +230,10 @@ for search in keywords:
     news_df = news_df.drop_duplicates(subset='link', keep='first', ignore_index=True)
     print(f"키워드 '{search}'에 대한 뉴스 수집 완료: {len(news_df)}개 기사 수집")
     
+    if news_df.empty:
+        print(f"키워드 '{search}' 관련 기사가 없습니다. 건너뜁니다.")
+        continue
+    
 
     print(news_df['title'])
     # ====== 키워드 관련성 판단 ======
@@ -369,6 +373,7 @@ for search in keywords:
 
         Parameters:
         - titles (list): 뉴스 제목 리스트
+        
 
         Returns:
         - grouped_titles (dict): 유사한 제목 그룹 딕셔너리
@@ -423,6 +428,10 @@ for search in keywords:
         
     def remove_duplicates_by_group(df):
         # 데이터프레임의 인덱스를 리셋 (0-based로 강제)
+
+        if df.empty or len(df) < 2:  # 행이 0 또는 1개뿐이면 중복 검사 불필요
+            return df.reset_index(drop=True)
+        
         df = df.reset_index(drop=True)
         
         titles = df["title"].tolist()
@@ -456,6 +465,10 @@ for search in keywords:
 
         # 중복 제거 후 데이터프레임 반환
         return df.drop(index=list(to_remove)).reset_index(drop=True)
+
+    if news_df.empty:
+    print(f"키워드 '{search}' 관련 기사가 없습니다. 건너뜁니다.")
+    continue
 
     news_df_filtered = remove_duplicates_by_group(news_df)
 
@@ -594,6 +607,7 @@ def remove_duplicates_by_group(df):
 
     # 중복 제거 후 데이터프레임 반환
     return df.drop(index=list(to_remove)).reset_index(drop=True)
+    
 print(all_news_df['title'])
 all_news_df_filtered = remove_duplicates_by_group(all_news_df)
 print(all_news_df_filtered['title'])
