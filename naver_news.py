@@ -205,8 +205,8 @@ for search in keywords:
     
         # 뉴스 날짜
         try:
-            html_date = news_html.select_one(
-                "div#ct > div.media_end_head.go_trans > div.media_end_head_info.nv_notrans > div.media_end_head_info_datestamp > div > span")
+            # 클래스명으로 직접 찾기 (구조 변경에 더 강함)
+            html_date = news_html.select_one("span.media_end_head_info_datestamp_time")
             news_date = html_date.attrs['data-date-time']
         except AttributeError:
             news_date = "날짜 없음"
