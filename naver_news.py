@@ -172,6 +172,53 @@ def get_related_keyword(title: str, keywords: list[str]) -> str | None:
         return None
 
 
+def score_importance(title: str, content_snippet: str) -> int:
+    """
+    기사 중요도를 1~3점으로 평가.
+    3: 업계 전반에 영향을 미치는 중대 뉴스
+       (정책/규제 변화, 대규모 투자·M&A, 기술 양산 성공, 공급망 위기, 실적 충격)
+    2: 주목할 만한 뉴스
+       (신제품 발표, 파트너십, 주요 수주, 시장 전망 변화)
+    1: 일반 뉴스
+       (인사, 채용, 마케팅, 이미 알려진 내용의 반복 보도)
+    """
+    prompt = (
+        "다음 반도체 관련 기사의 중요도를 1~3점으로만 평가하세요.\n\n"
+        "3점 기준: 업계 전반에 영향을 미치는 중대 사건\n"
+        "  - 정부 정책/수출규제/보조금 확정\n"
+        "  - 대규모 공장 투자, M&A, 사업 철수\n"
+        "  - 핵심 기술 양산 성공 또는 실패\n"
+        "  - 공급망 위기 (소재·장비 수출금지, 재해)\n"
+        "  - 시장 예상을 크게 벗어난 실적\n\n"
+        "2점 기준: 주목할 만한 뉴스\n"
+        "  - 신제품/신기술 발표, 주요 파트너십·수주\n"
+        "  - 시장 전망 또는 목표주가 변화\n"
+        "  - 경쟁사 동향\n\n"
+        "1점 기준: 일반적인 뉴스\n"
+        "  - 인사·채용·마케팅 관련\n"
+        "  - 이미 알려진 내용의 단순 반복 보도\n\n"
+        f"제목: {title}\n"
+        f"본문 앞부분: {content_snippet[:400]}\n\n"
+        "숫자 1, 2, 3 중 하나만 출력하세요."
+    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4.1-nano",
+            messages=[
+                {"role": "system", "content": "뉴스 중요도 평가기. 1, 2, 3 중 하나만 출력."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0,
+            max_tokens=2,
+        )
+        answer = response.choices[0].message.content.strip()
+        score = int(answer) if answer in ("1", "2", "3") else 1
+        return score
+    except Exception as e:
+        print(f"중요도 평가 오류: {e}")
+        return 1
+
+
 def summarize_content(text: str) -> str:
     """기사 본문을 200자 이내로 요약."""
     try:
@@ -284,6 +331,13 @@ def main():
         news_df['summary'] = news_df['content'].apply(
             lambda x: summarize_content(x) if len(x) > 10 else "내용 부족"
         )
+
+        # 8. 중요도 평가 (1~3점)
+        news_df['importance'] = news_df.apply(
+            lambda r: score_importance(r['title'], r['content']), axis=1
+        )
+        important_count = (news_df['importance'] == 3).sum()
+        print(f"중요도 평가 완료: 3점 {important_count}개 / 전체 {len(news_df)}개")
 
         news_df['검색어'] = search
         all_news_df = pd.concat([all_news_df, news_df], ignore_index=True)
