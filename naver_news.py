@@ -5,85 +5,15 @@ from tqdm import tqdm
 import time
 import pandas as pd
 import random
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
 from openai import OpenAI
-import re
-import json
 import os
+from rapidfuzz import fuzz
 
 api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
-print(api_key)
-
-# ====== 뉴스 크롤링 ======
-
-# 기존 데이터 불러오기
-def load_existing_data(file_name):
-    if os.path.exists(file_name):
-        existing_df = pd.read_csv(file_name, encoding='utf-8-sig')
-        print(f"기존 파일 로드 완료: {file_name}")
-    else:
-        existing_df = pd.DataFrame()
-        print("기존 파일이 없습니다. 새로운 데이터를 생성합니다.")
-    return existing_df
-
-# 기존 데이터와 새 데이터 병합
-def merge_and_remove_duplicates(existing_df, new_df):
-    if not existing_df.empty:
-        combined_df = pd.concat([existing_df, new_df], ignore_index=True)
-        combined_df = combined_df.drop_duplicates(subset='link', keep='first').reset_index(drop=True)
-        print(f"기존 데이터와 새 데이터를 병합했습니다. 최종 데이터 개수: {len(combined_df)}")
-    else:
-        combined_df = new_df
-        print(f"새 데이터만 사용합니다. 데이터 개수: {len(combined_df)}")
-    return combined_df
-
-# 파일 저장
-def save_updated_data(data, file_name):
-    data.to_csv(file_name, encoding='utf-8-sig', index=False)
-    print(f"업데이트된 데이터를 저장했습니다: {file_name}")
-
-# 페이지 URL 변환
-def makePgNum(num):
-    if num == 1:
-        return num
-    elif num == 0:
-        return num + 1
-    else:
-        return num + 9 * (num - 1)
-
-# 크롤링할 URL 생성
-def makeUrl(search, start_pg, end_pg, start_date, end_date):
-    urls = []
-    for i in range(start_pg, end_pg + 1):
-        page = makePgNum(i)
-        url = f"https://search.naver.com/search.naver?where=news&sm=tab_opt&sort=0&photo=0&field=0&pd=3&ds={start_date}&de={end_date}&query={search}&start={page}"
-        urls.append(url)
-    return urls
-
-# HTML 속성 추출
-def news_attrs_crawler(articles, attrs):
-    attrs_content = []
-    for i in articles:
-        attrs_content.append(i.attrs[attrs])
-    return attrs_content
-
-# 뉴스 링크 크롤링
-#def articles_crawler(url):
-#    original_html = requests.get(url, headers=headers)
-#    html = BeautifulSoup(original_html.text, "html.parser")#
-#
-#    url_naver = html.select(
-#        "div.group_news > ul.list_news > li div.news_area > div.news_info > div.info_group > a.info")
-#    url = news_attrs_crawler(url_naver, 'href')
-#    return url
 
 MOBILE_NEWS_PREFIX = "https://n.news.naver.com/mnews/article/"
 
-# ⬇️ 6 개 클래스 모두 포함한 컨테이너 + 모바일 뉴스 링크 선택자
 CONTAINER_SELECTOR = (
     "div.sds-comps-horizontal-layout"
     ".sds-comps-full-layout"
@@ -94,518 +24,285 @@ CONTAINER_SELECTOR = (
     f"a[href^='{MOBILE_NEWS_PREFIX}']"
 )
 
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/122.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Referer": "https://www.naver.com/",
+}
+
+
+# ====== 파일 I/O ======
+
+def load_existing_links(file_name: str) -> set:
+    """기존 CSV에서 이미 수집된 링크 집합을 반환."""
+    if os.path.exists(file_name):
+        df = pd.read_csv(file_name, encoding='utf-8-sig', usecols=['link'])
+        return set(df['link'].dropna().tolist())
+    return set()
+
+
+def load_existing_data(file_name: str) -> pd.DataFrame:
+    if os.path.exists(file_name):
+        return pd.read_csv(file_name, encoding='utf-8-sig')
+    return pd.DataFrame()
+
+
+def merge_and_remove_duplicates(existing_df: pd.DataFrame, new_df: pd.DataFrame) -> pd.DataFrame:
+    if not existing_df.empty:
+        combined = pd.concat([existing_df, new_df], ignore_index=True)
+        combined = combined.drop_duplicates(subset='link', keep='first').reset_index(drop=True)
+        print(f"병합 완료: 최종 {len(combined)}개")
+        return combined
+    print(f"새 데이터만 사용: {len(new_df)}개")
+    return new_df
+
+
+def save_updated_data(data: pd.DataFrame, file_name: str) -> None:
+    data.to_csv(file_name, encoding='utf-8-sig', index=False)
+    print(f"저장 완료: {file_name}")
+
+
+# ====== 크롤링 ======
+
+def makePgNum(num: int) -> int:
+    if num == 1:
+        return num
+    elif num == 0:
+        return num + 1
+    return num + 9 * (num - 1)
+
+
+def makeUrl(search: str, start_pg: int, end_pg: int, start_date: str, end_date: str) -> list[str]:
+    return [
+        (
+            f"https://search.naver.com/search.naver?where=news&sm=tab_opt"
+            f"&sort=0&photo=0&field=0&pd=3&ds={start_date}&de={end_date}"
+            f"&query={search}&start={makePgNum(i)}"
+        )
+        for i in range(start_pg, end_pg + 1)
+    ]
+
+
 def articles_crawler(search_page_url: str) -> list[str]:
-    """
-    네이버 통합검색(뉴스 탭) 결과 페이지에서
-    특정 레이아웃 블록 안에 있는 모바일 뉴스 URL을 반환한다.
-    """
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/122.0.0.0 Safari/537.36"
-        ),
-        "Referer": "https://www.naver.com/",
-    }
-
-    html = requests.get(search_page_url, headers=headers, timeout=10).text
+    """네이버 뉴스 검색 결과 페이지에서 기사 링크 목록 반환."""
+    html = requests.get(search_page_url, headers=HEADERS, timeout=10).text
     soup = BeautifulSoup(html, "html.parser")
-
-    # set → 중복 제거, split("?") → 쿼리스트링 제거
     links = {
         a["href"].split("?", 1)[0]
         for a in soup.select(CONTAINER_SELECTOR)
     }
     return sorted(links)
 
-def makeList(newlist, content):
-    for i in content:
-        for j in i:
-            newlist.append(j)
-    return newlist
+
+def crawl_article(url: str) -> dict:
+    """단일 기사 URL에서 제목, 본문, 날짜, 언론사를 추출."""
+    soup = BeautifulSoup(requests.get(url, headers=HEADERS, timeout=10).text, "html.parser")
+
+    img = soup.select_one(
+        "#ct > div.media_end_head.go_trans > div.media_end_head_top > a.media_end_head_top_logo > img"
+    )
+    company = img.attrs['title'] if img else "정보 없음"
+
+    title_el = soup.select_one(
+        "#ct > div.media_end_head.go_trans > div.media_end_head_title > h2"
+    )
+    title = title_el.text.strip() if title_el else "제목 없음"
+
+    body = soup.find("div", class_="newsct_article _article_body")
+    content = body.get_text(strip=True) if body else ""
+
+    date_el = soup.select_one("span.media_end_head_info_datestamp_time")
+    news_date = date_el.attrs.get('data-date-time', "날짜 없음") if date_el else "날짜 없음"
+
+    return {"company": company, "title": title, "content": content, "date": news_date}
 
 
+# ====== GPT 처리 ======
 
-# 키워드 파일 불러오기
-keyword_df = pd.read_csv('keyword_org.csv', encoding='utf-8-sig')
-keywords = keyword_df['키워드'].unique().tolist()
-
-
-# 날짜 계산 (오늘 기준 최신 1주일)
-end_date = datetime.datetime.now().strftime("%Y.%m.%d")
-start_date = (datetime.datetime.now() - datetime.timedelta(days=31)).strftime("%Y.%m.%d")
-
-# 사용자 입력 -----> 자동으로 불러오도록 변경!
-#search = input("검색할 키워드를 입력해주세요: ")
-#start_pg = int(input("크롤링할 시작 페이지를 입력해주세요 (숫자만): "))
-#end_pg = int(input("크롤링할 종료 페이지를 입력해주세요 (숫자만): "))
-
-# 시작 및 종료 페이지 설정
-start_pg = 1
-end_pg = 2  # 원하는 페이지 범위로 설정하세요.
-
-# URL 생성
-#headers = {
-#    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"
-#}
-
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36",
-    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Referer": "https://www.naver.com/"
-}
-
-# 결과를 저장할 DataFrame 초기화
-all_news_df = pd.DataFrame()
-
-# 키워드별로 반복
-for search in keywords:
-    print(f"\n=== 키워드 '{search}'에 대한 뉴스 수집 시작 ===")
-    
-    urls = makeUrl(search, start_pg, end_pg, start_date, end_date)
-    
-    # 뉴스 데이터 수집
-    news_companies = []
-    news_titles = []
-    news_url = []
-    news_contents = []
-    news_dates = []
-    
-    for i in urls:
-        url_list = articles_crawler(i)
-        news_url.append(url_list)
-        time.sleep(random.uniform(0.2, 0.4))
-    
-    news_url_1 = []
-    makeList(news_url_1, news_url)
-    
-    # NAVER 뉴스만 필터링
-    final_urls = []
-    for i in range(len(news_url_1)):
-        if "news.naver.com" in news_url_1[i]:
-            final_urls.append(news_url_1[i])
-    
-    # 뉴스 내용 크롤링
-    for i in tqdm(final_urls):
-        news = requests.get(i, headers=headers)
-        news_html = BeautifulSoup(news.text, "html.parser")
-    
-        # 언론사 이름
-        html_company = news_html.select_one(
-            "#ct > div.media_end_head.go_trans > div.media_end_head_top > a.media_end_head_top_logo > img")
-        company = html_company.attrs['title'] if html_company else "정보 없음"
-    
-        # 뉴스 제목
-        title = news_html.select_one("#ct > div.media_end_head.go_trans > div.media_end_head_title > h2")
-        title = title.text.strip() if title else "제목 없음"
-    
-        # 뉴스 본문
-        content = news_html.find("div", class_="newsct_article _article_body")
-        content = content.get_text(strip=True) if content else "내용 없음"
-    
-        # 뉴스 날짜
-        try:
-            # 클래스명으로 직접 찾기 (구조 변경에 더 강함)
-            html_date = news_html.select_one("span.media_end_head_info_datestamp_time")
-            news_date = html_date.attrs['data-date-time']
-        except AttributeError:
-            news_date = "날짜 없음"
-    
-        news_companies.append(company)
-        news_titles.append(title)
-        news_contents.append(content)
-        news_dates.append(news_date)
-        time.sleep(random.uniform(0.2, 0.4))
-    
-    # 데이터프레임 생성
-    news_df = pd.DataFrame({
-        'date': news_dates,
-        'title': news_titles,
-        'company': news_companies,
-        'link': final_urls,
-        'content': news_contents
-    })
-    
-    # 중복 제거
-    news_df = news_df.drop_duplicates(subset='link', keep='first', ignore_index=True)
-    print(f"키워드 '{search}'에 대한 뉴스 수집 완료: {len(news_df)}개 기사 수집")
-    
-
-    print(news_df['title'])
-    # ====== 키워드 관련성 판단 ======
-    # 1. 반도체 관련성 진단
-    def is_related_to_semiconductor(title):
-        """
-        기사 제목이 '반도체'와 관련이 있는지 판단하는 함수.
-        관련이 있으면 '반도체', 없으면 '관련 없음' 반환.
-        """
-        prompt = f"""
-        아래는 기사 제목입니다. 이 제목이 '반도체'와 관련이 있는지 판단해 주세요.
-        관련이 있으면 '반도체', 관련이 없으면 '관련 없음'이라고 답해 주세요.
-
-        기사 제목:
-        {title}
-
-        결과를 둘 중에 한 단어로만 작성해 주세요: '반도체' 또는 '관련 없음'.
-        """
-
-        try:
-            # OpenAI API 호출
-            response = client.chat.completions.create(
-                model="gpt-4.1-nano",
-                messages=[
-                    {"role": "system", "content": "당신은 기사 제목이 '반도체'와 관련이 있는지 판단하는 도우미입니다."},
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            # 응답 추출
-            answer = response.choices[0].message.content.strip()
-
-            # 디버깅용 출력
-            print(f"제목: {title}")
-            print(f"GPT 응답: {answer}\n")
-
-            # 응답 반환
-            if answer in ['반도체', '관련 없음']:
-                return answer
-            else:
-                return '관련 없음'  # 예상치 못한 응답 처리
-        except Exception as e:
-            # 에러 발생 시 처리
-            print(f"예외 발생: {e}")
-            return '관련 없음'
-
-    # 기사 제목 처리 함수
-    def filter_semiconductor_related_articles(news_df):
-        """
-        DataFrame에서 '반도체'와 관련 있는 기사만 필터링.
-        """
-        # '관련성' 열 추가
-        news_df['관련성'] = news_df['title'].apply(is_related_to_semiconductor)
-
-        # '반도체'와 관련 있는 행만 필터링
-        filtered_df = news_df[news_df['관련성'] == '반도체'].reset_index(drop=True)
-
-        return filtered_df
-
-    # 사용 예시
-    # DataFrame에서 각 제목에 대해 관련성 판단
-    news_df = filter_semiconductor_related_articles(news_df)
-    # 결과 확인
-    print(news_df[['title', '관련성']])
-
-
-
-
-        
-    # 2. 키워드 분류 프로세스
-    def get_related_keywords(title, keyword_df):
-        # 키워드 목록을 딕셔너리 리스트로 변환
-        keywords_list = keyword_df.to_dict('records')  # 각 아이템은 {'키워드': ...} 형태의 딕셔너리
-
-        # 키워드 문자열 생성
-        keywords_str = '\n'.join([f"{item['키워드']}" for item in keywords_list])
-
-        prompt = f"""
-        아래는 기사 제목과 키워드 목록입니다. 기사 제목이 키워드 목록 중 어떤 키워드와 관련이 있는지 판단하고,
-        관련된 키워드를 반드시 키워드 목록(반도체 키워드는 제외) 중 딱 하나로만 알려주세요.
-        키워드 목록과 관련 없는 기사 제목은 "관련 없음"이라고 답해주세요.
-
-        기사 제목:
-        {title}
-
-        키워드 목록:
-        {keywords_str}
-
-        결과를 한 단어(키워드 또는 '관련 없음')로만 작성해주세요.
-        """
-
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4.1-nano",
-                messages=[
-                    {"role": "system", "content": "당신은 기사 제목과 키워드 목록을 비교하여 관련된 키워드를 찾아주는 도우미입니다."},
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            answer = response.choices[0].message.content.strip()
-            
-            # 디버깅을 위해 GPT의 응답을 출력합니다.
-            print(f"제목: {title}")
-            print(f"GPT 응답: {answer}\n")
-            
-            if answer == '관련 없음':
-                return None
-            else:
-                return answer
-        except Exception as e:
-            # 예외 메시지를 출력합니다.
-            print(f"예외 발생: {e}")
-            return None
-    
-    def process_article(title):
-        keyword = get_related_keywords(title, keyword_df)
-        if keyword is None:
-            return "관련 없음"  # 키워드가 없으면 기본값 반환
-        return keyword
-
-        
-    # 함수 적용하여 '구분'과 '키워드' 칼럼 추가
-    print(f"키워드 '{search}'에 대한중복내용 제거")
-    news_df['키워드'] = news_df['title'].apply(process_article)
-    
-    # 관련 없는 기사 제거
-
-    news_df = news_df[news_df['키워드'].notna()].reset_index(drop=True)
-    print(news_df['title'])
-
-    # 중복 제거 및 그룹별 데이터프레임 반환
-    
-    # 3. 제목유사도 통한 중복제거
-    # GPT를 사용하여 제목 유사도 판단
-    def group_similar_titles(titles):
-        """
-        여러 뉴스 제목을 GPT 모델에게 전달해 같은 뜻의 제목끼리 그룹화합니다.
-
-        Parameters:
-        - titles (list): 뉴스 제목 리스트
-
-        Returns:
-        - grouped_titles (dict): 유사한 제목 그룹 딕셔너리
-        """
-        # 프롬프트 생성
-        prompt = f"""
-        다음 뉴스 제목들을 서로 비교하여, 완전히 같은 뜻의 제목끼리 그룹화해주세요.
-        완전히 같은 의미의 제목끼리 묶어 한번에 다루려고 합니다.
-        동일한 그룹에 속하는 제목끼리는 순서대로 나열해 주세요. 서로 다른 그룹은 번호를 매겨 구분해 주세요.
-        최대한 그룹 수가 많게 해주세요
-
-        제목 리스트:
-        {chr(10).join([f"{i + 1}. {title}" for i, title in enumerate(titles)])}
-
-        결과는 다음과 같은 형식으로 출력해 주세요:
-        - 그룹 1: 제목 번호, 제목 번호
-        - 그룹 2: 제목 번호
-        - 그룹 3: 제목 번호, 제목 번호        
-        ...
-        """
-        
-        try:
-            # GPT 모델 호출
-            messages = [
-                {"role": "system", "content": "뉴스 제목의 유사성을 판단하여 그룹화하는 도우미입니다."},
+def is_related_to_semiconductor(title: str, content_snippet: str) -> bool:
+    """제목 + 본문 앞부분을 보고 반도체 산업 관련 기사인지 판단."""
+    prompt = (
+        "다음 기사가 반도체 산업(메모리, 파운드리, AI 반도체, 반도체 장비·소재, "
+        "공급망, 지정학적 규제, 관련 기업 실적 등)과 관련이 있으면 'YES', 없으면 'NO'로만 답하세요.\n\n"
+        f"제목: {title}\n"
+        f"본문 앞부분: {content_snippet[:400]}"
+    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4.1-nano",
+            messages=[
+                {"role": "system", "content": "반도체 산업 관련성 판단기. YES 또는 NO만 출력."},
                 {"role": "user", "content": prompt}
-            ]
-            completion = client.chat.completions.create(
-                model="gpt-4.1-nano",  # 또는 "gpt-3.5-turbo"
-                messages=messages
-            )
-            # GPT 응답 처리
-            response = completion.choices[0].message.content.strip()
-            
-            # 응답 파싱
-            grouped_titles = {}
-            for line in response.split("\n"):
-                if line.startswith("- 그룹"):  # "그룹"으로 시작하는 줄만 처리
-                    try:
-                        group, members = line.split(": ")
-                        group_id = int(re.search(r"\d+", group).group())  # 그룹 번호 추출
-                        member_ids = [int(re.search(r"\d+", x).group()) for x in members.split(",")]
-                        grouped_titles[group_id] = member_ids
-                    except (ValueError, AttributeError) as ve:
-                        print(f"파싱 에러 발생: {ve} / 문제 있는 줄: {line}")
-            return grouped_titles
+            ],
+            temperature=0,
+            max_tokens=5,
+        )
+        return response.choices[0].message.content.strip().upper() == "YES"
+    except Exception as e:
+        print(f"관련성 판단 오류: {e}")
+        return False
 
-        except Exception as e:
-            print(f"에러 발생: {e}")
-            return {}
 
-        
-    def remove_duplicates_by_group(df):
-        # 데이터프레임의 인덱스를 리셋 (0-based로 강제)
-        df = df.reset_index(drop=True)
-        
-        titles = df["title"].tolist()
-        groups = group_similar_titles(titles)  # 유사한 제목 그룹화
-        
-        # 그룹화 결과 출력
-        print("\n[그룹화 결과]")
-        for group, indices in groups.items():
-            print(f"그룹 {group}: {indices}")
-        
-        to_remove = set()
-
-        for group, indices in groups.items():
-            # 그룹 내 제목 비교
-            # GPT의 응답이 1-based라 가정하고 0-based로 변환
-            group_indices = sorted([idx - 1 for idx in indices])  # -1 오프셋 적용
-            
-            for i in range(len(group_indices)):
-                if group_indices[i] in to_remove:
-                    continue
-                for j in range(i + 1, len(group_indices)):
-                    if group_indices[j] in to_remove:
-                        continue
-                    # 본문 길이 비교
-                    idx_i, idx_j = group_indices[i], group_indices[j]
-                    if len(df.loc[idx_i, "content"]) >= len(df.loc[idx_j, "content"]):
-                        to_remove.add(idx_j)  # 짧은 본문 제거
-                    else:
-                        to_remove.add(idx_i)  # 현재 i 제거
-                        break
-
-        # 중복 제거 후 데이터프레임 반환
-        return df.drop(index=list(to_remove)).reset_index(drop=True)
-
-    news_df_filtered = remove_duplicates_by_group(news_df)
-
-    print(news_df_filtered['title'])
-    
-    print(f"키워드 '{search}'에 대한 중복제거 완료: 최종 {len(news_df_filtered)}개 기사 ")
-    
-    # ====== 기사 요약 ======
-    def summarize_content(text, max_tokens=1000):
-        try:
-            if not text:
-                raise ValueError("기사 내용이 비어 있습니다.")
-            
-            prompt = f"다음 기사를 200자 이내로 요약해주세요:\n\n{text}"
-            response = client.chat.completions.create(
-                model="gpt-4.1-nano",
-                messages=[
-                    {"role": "system", "content": "당신은 뉴스 기사를 요약하는 도우미입니다."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=max_tokens,
-                temperature=0.7
-            )
-            summary = response.choices[0].message.content.strip()
-            return summary
-        except Exception as e:
-            # print(f"요약 중 오류 발생: {e}")
-            return "요약 실패"
-    
-    news_df_filtered['summary'] = news_df_filtered['content'].apply(lambda x: summarize_content(x) if len(x) > 10 else "내용 부족")
-    
-    # '검색어' 칼럼 추가
-    news_df_filtered['검색어'] = search
-    
-    # 수집된 뉴스 데이터를 전체 DataFrame에 추가
-    all_news_df = pd.concat([all_news_df, news_df_filtered], ignore_index=True)
-    
-    print(f"키워드 '{search}'에 대한 데이터 처리 완료\n")
-
-# 전체 수집 완료 후, 전체 데이터를 저장
-
-# 중복 제거 한번더
-all_news_df = all_news_df.drop_duplicates(subset='link', keep='first', ignore_index=True)
-
-def group_similar_titles(titles):
-        """
-        여러 뉴스 제목을 GPT 모델에게 전달해 유사한 제목끼리 그룹화합니다.
-
-        Parameters:
-        - titles (list): 뉴스 제목 리스트
-
-        Returns:
-        - grouped_titles (dict): 유사한 제목 그룹 딕셔너리
-        """
-        # 프롬프트 생성
-        prompt = f"""
-        다음 뉴스 제목들을 서로 비교하여, 완전히 같은 뜻의 제목끼리 그룹화해주세요.
-        완전히 같은 뜻 제목만 그룹화하면 됩니다.
-
-        동일한 그룹에 속하는 제목끼리는 순서대로 나열해 주세요. 서로 다른 그룹은 번호를 매겨 구분해 주세요.
-        최대한 그룹 수가 많게 해주세요
-
-        제목 리스트:
-        {chr(10).join([f"{i + 1}. {title}" for i, title in enumerate(titles)])}
-
-        결과는 다음과 같은 형식으로 출력해 주세요:
-        - 그룹 1: 제목 번호, 제목 번호
-        - 그룹 2: 제목 번호
-        - 그룹 3: 제목 번호, 제목 번호
-        ...
-        """
-        
-        try:
-            # GPT 모델 호출
-            messages = [
-                {"role": "system", "content": "뉴스 제목 리스트를 보고 같은 뜻의 뉴스 제목을 그룹화하는 도우미입니다."},
+def get_related_keyword(title: str, keywords: list[str]) -> str | None:
+    """기사 제목에 가장 잘 맞는 키워드 하나를 반환. 없으면 None."""
+    prompt = (
+        "다음 기사 제목과 가장 관련 있는 키워드를 아래 목록에서 딱 하나만 골라 그대로 출력하세요.\n"
+        "목록에 없으면 '관련 없음'이라고만 답하세요.\n\n"
+        f"제목: {title}\n\n"
+        f"키워드 목록:\n" + "\n".join(keywords)
+    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4.1-nano",
+            messages=[
+                {"role": "system", "content": "키워드 분류기. 키워드 하나 또는 '관련 없음'만 출력."},
                 {"role": "user", "content": prompt}
-            ]
-            completion = client.chat.completions.create(
-                model="gpt-4.1-nano",  # 또는 "gpt-3.5-turbo"
-                messages=messages
-            )
-            # GPT 응답 처리
-            response = completion.choices[0].message.content.strip()
-            
-            # 응답 파싱
-            grouped_titles = {}
-            for line in response.split("\n"):
-                if line.startswith("- 그룹"):  # "그룹"으로 시작하는 줄만 처리
-                    try:
-                        group, members = line.split(": ")
-                        group_id = int(re.search(r"\d+", group).group())  # 그룹 번호 추출
-                        member_ids = [int(re.search(r"\d+", x).group()) for x in members.split(",")]
-                        grouped_titles[group_id] = member_ids
-                    except (ValueError, AttributeError) as ve:
-                        print(f"파싱 에러 발생: {ve} / 문제 있는 줄: {line}")
-            return grouped_titles
+            ],
+            temperature=0,
+            max_tokens=20,
+        )
+        answer = response.choices[0].message.content.strip()
+        return None if answer == "관련 없음" else answer
+    except Exception as e:
+        print(f"키워드 분류 오류: {e}")
+        return None
 
-        except Exception as e:
-            print(f"에러 발생: {e}")
-            return {}
 
-        
-def remove_duplicates_by_group(df):
-    # 데이터프레임의 인덱스를 리셋 (0-based로 강제)
-    df = df.reset_index(drop=True)
-    
+def summarize_content(text: str) -> str:
+    """기사 본문을 200자 이내로 요약."""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4.1-nano",
+            messages=[
+                {"role": "system", "content": "뉴스 기사 요약기."},
+                {"role": "user", "content": f"다음 기사를 200자 이내로 요약해주세요:\n\n{text[:3000]}"}
+            ],
+            temperature=0.5,
+            max_tokens=300,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"요약 오류: {e}")
+        return "요약 실패"
+
+
+# ====== 중복 제거 ======
+
+def deduplicate_by_title_similarity(df: pd.DataFrame, threshold: int = 85) -> pd.DataFrame:
+    """rapidfuzz로 제목 유사도 기반 중복 제거. 본문이 긴 쪽을 남긴다."""
     titles = df["title"].tolist()
-    groups = group_similar_titles(titles)  # 유사한 제목 그룹화
-    
-    # 그룹화 결과 출력
-    print("\n[그룹화 결과]")
-    for group, indices in groups.items():
-        print(f"그룹 {group}: {indices}")
-    
     to_remove = set()
 
-    for group, indices in groups.items():
-        # 그룹 내 제목 비교
-        # GPT의 응답이 1-based라 가정하고 0-based로 변환
-        group_indices = sorted([idx - 1 for idx in indices])  # -1 오프셋 적용
-        
-        for i in range(len(group_indices)):
-            if group_indices[i] in to_remove:
+    for i in range(len(titles)):
+        if i in to_remove:
+            continue
+        for j in range(i + 1, len(titles)):
+            if j in to_remove:
                 continue
-            for j in range(i + 1, len(group_indices)):
-                if group_indices[j] in to_remove:
-                    continue
-                # 본문 길이 비교
-                idx_i, idx_j = group_indices[i], group_indices[j]
-                if len(df.loc[idx_i, "content"]) >= len(df.loc[idx_j, "content"]):
-                    to_remove.add(idx_j)  # 짧은 본문 제거
-                else:
-                    to_remove.add(idx_i)  # 현재 i 제거
-                    break
+            if fuzz.token_sort_ratio(titles[i], titles[j]) >= threshold:
+                len_i = len(df.iloc[i]["content"])
+                len_j = len(df.iloc[j]["content"])
+                to_remove.add(j if len_i >= len_j else i)
 
-    # 중복 제거 후 데이터프레임 반환
-    return df.drop(index=list(to_remove)).reset_index(drop=True)
-print(all_news_df['title'])
-all_news_df_filtered = remove_duplicates_by_group(all_news_df)
-print(all_news_df_filtered['title'])
+    kept = df.drop(index=list(to_remove)).reset_index(drop=True)
+    print(f"유사 제목 중복 제거: {len(to_remove)}개 제거 → {len(kept)}개 남음")
+    return kept
 
 
-now = datetime.datetime.now()
-file_name = f"Total_Filtered_No_Comment.csv"
-existing_data = load_existing_data(file_name)
+# ====== 메인 ======
 
-all_news_df_filtered['date'] = pd.to_datetime(all_news_df_filtered['date'], errors='coerce').dt.strftime('%Y-%m-%d')
-# 기존 데이터와 새 데이터 병합
-updated_data = merge_and_remove_duplicates(existing_data, all_news_df_filtered)
+def main():
+    file_name = "Total_Filtered_No_Comment.csv"
+    existing_links = load_existing_links(file_name)
+    print(f"기존 수집 링크 수: {len(existing_links)}")
 
-# 병합된 데이터 저장
-save_updated_data(updated_data, file_name)
+    keyword_df = pd.read_csv('keyword_org.csv', encoding='utf-8-sig')
+    keywords = keyword_df['키워드'].unique().tolist()
+
+    end_date = datetime.datetime.now().strftime("%Y.%m.%d")
+    start_date = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime("%Y.%m.%d")
+
+    start_pg, end_pg = 1, 2
+    all_news_df = pd.DataFrame()
+
+    for search in keywords:
+        print(f"\n=== 키워드 '{search}' ===")
+        urls = makeUrl(search, start_pg, end_pg, start_date, end_date)
+
+        # 1. 링크 수집
+        raw_links = []
+        for url in urls:
+            raw_links.extend(articles_crawler(url))
+            time.sleep(random.uniform(0.2, 0.5))
+
+        # 2. 이미 수집된 링크 제외 (GPT 호출 전 필터링 → API 비용 절감)
+        new_links = list({link for link in raw_links if link not in existing_links})
+        print(f"신규 링크: {len(new_links)}개 (전체 {len(raw_links)}개 중)")
+        if not new_links:
+            continue
+
+        # 3. 기사 본문 크롤링
+        articles = []
+        for link in tqdm(new_links, desc="기사 크롤링"):
+            try:
+                data = crawl_article(link)
+                data["link"] = link
+                articles.append(data)
+            except Exception as e:
+                print(f"크롤링 실패 {link}: {e}")
+            time.sleep(random.uniform(0.2, 0.4))
+
+        if not articles:
+            continue
+
+        news_df = pd.DataFrame(articles)
+
+        # 4. 반도체 관련성 필터 (제목 + 본문 앞부분으로 판단)
+        news_df['관련성'] = news_df.apply(
+            lambda r: is_related_to_semiconductor(r['title'], r['content']), axis=1
+        )
+        news_df = news_df[news_df['관련성']].reset_index(drop=True)
+        print(f"관련성 필터 후: {len(news_df)}개")
+        if news_df.empty:
+            continue
+
+        # 5. 키워드 분류
+        news_df['키워드'] = news_df['title'].apply(lambda t: get_related_keyword(t, keywords))
+        news_df = news_df[news_df['키워드'].notna()].reset_index(drop=True)
+        print(f"키워드 분류 후: {len(news_df)}개")
+        if news_df.empty:
+            continue
+
+        # 6. 제목 유사도 중복 제거
+        news_df = deduplicate_by_title_similarity(news_df)
+
+        # 7. 요약 생성
+        news_df['summary'] = news_df['content'].apply(
+            lambda x: summarize_content(x) if len(x) > 10 else "내용 부족"
+        )
+
+        news_df['검색어'] = search
+        all_news_df = pd.concat([all_news_df, news_df], ignore_index=True)
+        print(f"키워드 '{search}' 완료: {len(news_df)}개 추가")
+
+    if all_news_df.empty:
+        print("새로 수집된 기사가 없습니다.")
+        return
+
+    # 전체 링크 중복 제거 후 제목 유사도 중복 제거
+    all_news_df = all_news_df.drop_duplicates(subset='link', keep='first', ignore_index=True)
+    all_news_df = deduplicate_by_title_similarity(all_news_df)
+
+    all_news_df['date'] = pd.to_datetime(all_news_df['date'], errors='coerce').dt.strftime('%Y-%m-%d')
+
+    existing_data = load_existing_data(file_name)
+    updated_data = merge_and_remove_duplicates(existing_data, all_news_df)
+    save_updated_data(updated_data, file_name)
+
+
+if __name__ == "__main__":
+    main()
