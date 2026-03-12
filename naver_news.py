@@ -317,12 +317,11 @@ def main():
         if news_df.empty:
             continue
 
-        # 5. 키워드 분류
-        news_df['키워드'] = news_df['title'].apply(lambda t: get_related_keyword(t, keywords))
-        news_df = news_df[news_df['키워드'].notna()].reset_index(drop=True)
+        # 5. 키워드 분류 (미분류 시 검색 키워드로 대체 - 반도체 관련 기사는 유지)
+        news_df['키워드'] = news_df['title'].apply(
+            lambda t: get_related_keyword(t, keywords) or search
+        )
         print(f"키워드 분류 후: {len(news_df)}개")
-        if news_df.empty:
-            continue
 
         # 6. 제목 유사도 중복 제거
         news_df = deduplicate_by_title_similarity(news_df)
