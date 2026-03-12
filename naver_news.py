@@ -80,7 +80,7 @@ def makeUrl(search: str, start_pg: int, end_pg: int, start_date: str, end_date: 
     return [
         (
             f"https://search.naver.com/search.naver?where=news&sm=tab_opt"
-            f"&sort=0&photo=0&field=0&pd=3&ds={start_date}&de={end_date}"
+            f"&sort=1&photo=0&field=0&pd=3&ds={start_date}&de={end_date}"
             f"&query={search}&start={makePgNum(i)}"
         )
         for i in range(start_pg, end_pg + 1)
