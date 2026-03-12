@@ -307,21 +307,13 @@ def main():
             continue
 
         news_df = pd.DataFrame(articles)
+        news_df['관련성'] = True  # 검색어 자체가 반도체 키워드이므로 별도 필터 불필요
 
-        # 4. 반도체 관련성 필터 (제목 + 본문 앞부분으로 판단)
-        news_df['관련성'] = news_df.apply(
-            lambda r: is_related_to_semiconductor(r['title'], r['content']), axis=1
-        )
-        news_df = news_df[news_df['관련성']].reset_index(drop=True)
-        print(f"관련성 필터 후: {len(news_df)}개")
-        if news_df.empty:
-            continue
-
-        # 5. 키워드 분류 (미분류 시 검색 키워드로 대체 - 반도체 관련 기사는 유지)
+        # 키워드 분류 (미분류 시 검색 키워드로 대체)
         news_df['키워드'] = news_df['title'].apply(
             lambda t: get_related_keyword(t, keywords) or search
         )
-        print(f"키워드 분류 후: {len(news_df)}개")
+        print(f"수집: {len(news_df)}개")
 
         # 6. 제목 유사도 중복 제거
         news_df = deduplicate_by_title_similarity(news_df)
