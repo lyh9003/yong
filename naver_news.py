@@ -80,7 +80,7 @@ def makeUrl(search: str, start_pg: int, end_pg: int, start_date: str, end_date: 
     return [
         (
             f"https://search.naver.com/search.naver?where=news&sm=tab_opt"
-            f"&sort=1&photo=0&field=0&pd=3&ds={start_date}&de={end_date}"
+            f"&sort=0&photo=0&field=0&pd=3&ds={start_date}&de={end_date}"
             f"&query={search}&start={makePgNum(i)}"
         )
         for i in range(start_pg, end_pg + 1)
@@ -271,7 +271,7 @@ def main():
     keywords = keyword_df['키워드'].unique().tolist()
 
     end_date = datetime.datetime.now().strftime("%Y.%m.%d")
-    start_date = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime("%Y.%m.%d")
+    start_date = (datetime.datetime.now() - datetime.timedelta(days=31)).strftime("%Y.%m.%d")
 
     start_pg, end_pg = 1, 2
     all_news_df = pd.DataFrame()
