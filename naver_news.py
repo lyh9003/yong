@@ -239,7 +239,7 @@ def summarize_content(text: str) -> str:
 
 # ====== 중복 제거 ======
 
-def deduplicate_by_title_similarity(df: pd.DataFrame, threshold: int = 85) -> pd.DataFrame:
+def deduplicate_by_title_similarity(df: pd.DataFrame, threshold: int = 70) -> pd.DataFrame:
     """rapidfuzz로 제목 유사도 기반 중복 제거. 본문이 긴 쪽을 남긴다."""
     titles = df["title"].tolist()
     to_remove = set()
