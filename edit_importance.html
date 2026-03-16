@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>뉴스 중요도 편집기</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f1f5f9; color: #1e293b; font-size: 14px; }
+
+  .header { background: #1e3a5f; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+  .header h1 { font-size: 18px; font-weight: 700; }
+  .header .subtitle { font-size: 12px; opacity: 0.7; }
+
+  .token-bar { background: #fff7ed; border-bottom: 1px solid #fed7aa; padding: 10px 24px; display: flex; align-items: center; gap: 10px; }
+  .token-bar label { font-size: 12px; font-weight: 600; color: #92400e; white-space: nowrap; }
+  .token-bar input { flex: 1; max-width: 400px; padding: 6px 10px; border: 1px solid #fbbf24; border-radius: 6px; font-size: 12px; font-family: monospace; }
+  .token-bar .hint { font-size: 11px; color: #b45309; }
+
+  .toolbar { background: white; border-bottom: 1px solid #e2e8f0; padding: 12px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .toolbar input[type="text"] { padding: 7px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; width: 260px; }
+  .toolbar input[type="text"]:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe; }
+
+  .imp-filter { display: flex; gap: 4px; }
+  .imp-filter button { padding: 5px 12px; border-radius: 6px; border: 1px solid #e2e8f0; background: white; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.15s; }
+  .imp-filter button.active-3 { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+  .imp-filter button.active-2 { background: #fffbeb; border-color: #fcd34d; color: #d97706; }
+  .imp-filter button.active-1 { background: #f8fafc; border-color: #94a3b8; color: #475569; }
+  .imp-filter button.inactive { background: white; border-color: #e2e8f0; color: #94a3b8; }
+
+  .ml-auto { margin-left: auto; }
+  .btn { padding: 7px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+  .btn-primary { background: #2563eb; color: white; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+  .btn-success { background: #16a34a; color: white; }
+  .btn-success:hover { background: #15803d; }
+  .btn-success:disabled { background: #86efac; cursor: not-allowed; }
+  .btn-outline { background: white; border: 1px solid #e2e8f0; color: #475569; }
+  .btn-outline:hover { background: #f8fafc; }
+
+  .status-bar { padding: 8px 24px; font-size: 12px; display: flex; align-items: center; gap: 16px; }
+  .status-bar .info { color: #64748b; }
+  .status-bar .changed { color: #2563eb; font-weight: 600; }
+  .status-bar .loading { color: #8b5cf6; }
+  .status-bar .error { color: #dc2626; }
+  .status-bar .success { color: #16a34a; font-weight: 600; }
+
+  .table-wrap { padding: 0 24px 24px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-top: 12px; }
+  thead { background: #f8fafc; }
+  th { padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 700; color: #64748b; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+  td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr.changed-row { background: #eff6ff; }
+  tr:hover td { background: #f8fafc; }
+  tr.changed-row:hover td { background: #dbeafe; }
+
+  .imp-badge { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 5px; font-size: 11px; font-weight: 700; }
+  .imp-3 { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
+  .imp-2 { background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; }
+  .imp-1 { background: #f8fafc; color: #64748b; border: 1px solid #cbd5e1; }
+
+  .imp-btns { display: flex; gap: 3px; }
+  .imp-btn { width: 26px; height: 26px; border-radius: 5px; border: 1px solid #e2e8f0; background: white; cursor: pointer; font-size: 11px; font-weight: 700; transition: all 0.1s; color: #94a3b8; }
+  .imp-btn:hover { border-color: #94a3b8; color: #475569; }
+  .imp-btn.sel-3 { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+  .imp-btn.sel-2 { background: #fffbeb; border-color: #fcd34d; color: #d97706; }
+  .imp-btn.sel-1 { background: #f8fafc; border-color: #94a3b8; color: #475569; }
+
+  .date-cell { white-space: nowrap; font-size: 12px; color: #64748b; }
+  .company-cell { font-size: 12px; color: #2563eb; background: #eff6ff; padding: 2px 6px; border-radius: 4px; white-space: nowrap; display: inline-block; }
+  .title-cell { font-weight: 500; line-height: 1.4; }
+  .title-cell a { color: #1e293b; text-decoration: none; }
+  .title-cell a:hover { color: #2563eb; text-decoration: underline; }
+  .keyword-cell { font-size: 11px; color: #64748b; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .pagination { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 16px 24px; }
+  .page-btn { width: 34px; height: 34px; border-radius: 7px; border: 1px solid #e2e8f0; background: white; cursor: pointer; font-size: 13px; font-weight: 500; color: #475569; transition: all 0.1s; }
+  .page-btn:hover { background: #f1f5f9; }
+  .page-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+  .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .empty { text-align: center; padding: 60px; color: #94a3b8; }
+  .empty .icon { font-size: 40px; margin-bottom: 12px; }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: white; border-radius: 12px; padding: 24px; width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+  .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+  .modal p { font-size: 13px; color: #475569; margin-bottom: 16px; line-height: 1.6; }
+  .modal .actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .modal textarea { width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; resize: vertical; min-height: 60px; font-family: inherit; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="h1">📰 뉴스 중요도 편집기</div>
+    <div class="subtitle">lyh9003/yong · Total_Filtered_No_Comment.csv</div>
+  </div>
+</div>
+
+<div class="token-bar">
+  <label>🔑 GitHub Token</label>
+  <input type="password" id="tokenInput" placeholder="ghp_xxxxxxxxxxxx (repo 권한 필요)" />
+  <button class="btn btn-primary" onclick="loadCSV()">불러오기</button>
+  <span class="hint">토큰은 localStorage에만 저장됩니다.</span>
+</div>
+
+<div class="toolbar">
+  <input type="text" id="searchInput" placeholder="🔍 제목 / 언론사 검색..." oninput="onFilter()" />
+
+  <div class="imp-filter">
+    <span style="font-size:12px;color:#64748b;align-self:center;margin-right:4px;">중요도:</span>
+    <button id="f3" onclick="toggleFilter(3)">🔴 상</button>
+    <button id="f2" onclick="toggleFilter(2)">🟡 중</button>
+    <button id="f1" onclick="toggleFilter(1)">⚪ 하</button>
+    <button id="f0" onclick="toggleFilter(0)" style="font-size:12px;padding:5px 10px;">전체</button>
+  </div>
+
+  <div class="ml-auto" style="display:flex;gap:8px;align-items:center;">
+    <button class="btn btn-outline" onclick="loadCSV()" id="reloadBtn" disabled>↺ 새로고침</button>
+    <button class="btn btn-success" onclick="showSaveModal()" id="saveBtn" disabled>💾 GitHub에 저장</button>
+  </div>
+</div>
+
+<div class="status-bar">
+  <span class="info" id="statusInfo">GitHub Token을 입력하고 불러오기를 눌러주세요.</span>
+  <span class="changed" id="statusChanged" style="display:none;"></span>
+</div>
+
+<div class="table-wrap">
+  <table id="newsTable">
+    <thead>
+      <tr>
+        <th style="width:90px">날짜</th>
+        <th style="width:90px">중요도</th>
+        <th style="width:90px">언론사</th>
+        <th>제목</th>
+        <th style="width:160px">키워드</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody">
+      <tr><td colspan="5" class="empty"><div class="icon">📂</div>데이터를 불러오세요.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+
+<!-- 저장 모달 -->
+<div class="modal-overlay" id="saveModal">
+  <div class="modal">
+    <h3>💾 GitHub에 저장</h3>
+    <p id="saveModalDesc"></p>
+    <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:6px;">커밋 메시지</label>
+    <textarea id="commitMsg"></textarea>
+    <div class="actions">
+      <button class="btn btn-outline" onclick="closeSaveModal()">취소</button>
+      <button class="btn btn-success" onclick="doSave()" id="doSaveBtn">저장하기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── 상수 ─────────────────────────────────────────────────────────────
+const OWNER = 'lyh9003';
+const REPO  = 'yong';
+const FILE  = 'Total_Filtered_No_Comment.csv';
+const BRANCH = 'main';
+const PAGE_SIZE = 50;
+
+// ─── 상태 ─────────────────────────────────────────────────────────────
+let allRows = [];       // 헤더 제외한 파싱된 rows: string[][]
+let headers = [];       // CSV 헤더
+let changes = {};       // { rowIndex: newImportance }
+let currentFileSha = '';  // 현재 파일 blob SHA (contents API용)
+let filtered = [];      // 필터 적용된 row 인덱스 배열
+let page = 1;
+let filterImps = new Set([1, 2, 3]);
+let searchText = '';
+
+// ─── 초기화 ───────────────────────────────────────────────────────────
+window.onload = () => {
+  const saved = localStorage.getItem('gh_token');
+  if (saved) document.getElementById('tokenInput').value = saved;
+  updateFilterButtons();
+};
+
+function getToken() {
+  const t = document.getElementById('tokenInput').value.trim();
+  if (t) localStorage.setItem('gh_token', t);
+  return t;
+}
+
+// ─── GitHub API ────────────────────────────────────────────────────────
+async function ghFetch(url, opts = {}) {
+  const token = getToken();
+  const res = await fetch(url, {
+    ...opts,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(opts.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function loadCSV() {
+  if (!getToken()) { setStatus('error', 'GitHub Token을 입력하세요.'); return; }
+  setStatus('loading', 'CSV 불러오는 중...');
+  document.getElementById('reloadBtn').disabled = true;
+  document.getElementById('saveBtn').disabled = true;
+
+  try {
+    // contents API (파일 1MB 이하면 충분, 초과시 Git Data API로 fallback)
+    let content;
+    try {
+      const data = await ghFetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}?ref=${BRANCH}`);
+      currentFileSha = data.sha;
+      content = decodeBase64(data.content);
+    } catch(e) {
+      // large file: use Git Data API
+      const ref = await ghFetch(`https://api.github.com/repos/${OWNER}/${REPO}/git/ref/heads/${BRANCH}`);
+      const commit = await ghFetch(ref.object.url);
+      const tree = await ghFetch(commit.tree.url + '?recursive=0');
+      const fileEntry = tree.tree.find(t => t.path === FILE);
+      if (!fileEntry) throw new Error('파일을 찾을 수 없습니다.');
+      currentFileSha = fileEntry.sha;
+      const blob = await ghFetch(`https://api.github.com/repos/${OWNER}/${REPO}/git/blobs/${fileEntry.sha}`);
+      content = decodeBase64(blob.content);
+    }
+
+    const parsed = parseCSV(content);
+    headers = parsed[0];
+    allRows = parsed.slice(1).filter(r => r.length > 1);
+    changes = {};
+    page = 1;
+    applyFilter();
+    setStatus('info', `✅ ${allRows.length.toLocaleString()}개 뉴스 로드 완료`);
+    document.getElementById('reloadBtn').disabled = false;
+    document.getElementById('saveBtn').disabled = false;
+    updateChangedStatus();
+  } catch(e) {
+    setStatus('error', '❌ 로드 실패: ' + e.message);
+    document.getElementById('reloadBtn').disabled = false;
+  }
+}
+
+// ─── CSV 파서 ──────────────────────────────────────────────────────────
+function parseCSV(text) {
+  text = text.replace(/^\uFEFF/, '');
+  const rows = [];
+  let i = 0, n = text.length;
+  while (i < n) {
+    const row = [];
+    while (i < n) {
+      let field = '';
+      if (text[i] === '"') {
+        i++;
+        while (i < n) {
+          if (text[i] === '"') {
+            if (text[i+1] === '"') { field += '"'; i += 2; }
+            else { i++; break; }
+          } else field += text[i++];
+        }
+      } else {
+        while (i < n && text[i] !== ',' && text[i] !== '\n' && text[i] !== '\r') field += text[i++];
+      }
+      row.push(field);
+      if (i >= n || text[i] === '\n' || text[i] === '\r') break;
+      if (text[i] === ',') i++;
+    }
+    if (i < n && text[i] === '\r') i++;
+    if (i < n && text[i] === '\n') i++;
+    if (row.length > 1 || (row.length === 1 && row[0] !== '')) rows.push(row);
+  }
+  return rows;
+}
+
+function serializeCSV(headerRow, dataRows) {
+  const escape = (v) => {
+    if (v == null) return '';
+    const s = String(v);
+    if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r'))
+      return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  };
+  const lines = [headerRow.map(escape).join(',')];
+  for (const row of dataRows) lines.push(row.map(escape).join(','));
+  return lines.join('\n');
+}
+
+// ─── 필터 & 렌더 ───────────────────────────────────────────────────────
+function onFilter() {
+  searchText = document.getElementById('searchInput').value.toLowerCase();
+  page = 1;
+  applyFilter();
+}
+
+function toggleFilter(imp) {
+  if (imp === 0) { filterImps = new Set([1,2,3]); }
+  else {
+    if (filterImps.size === 3) { filterImps = new Set([imp]); }
+    else if (filterImps.has(imp) && filterImps.size === 1) { filterImps = new Set([1,2,3]); }
+    else if (filterImps.has(imp)) { filterImps.delete(imp); }
+    else { filterImps.add(imp); }
+  }
+  updateFilterButtons();
+  page = 1;
+  applyFilter();
+}
+
+function updateFilterButtons() {
+  [1,2,3].forEach(v => {
+    const btn = document.getElementById('f'+v);
+    if (!btn) return;
+    btn.className = filterImps.has(v) ? `active-${v}` : 'inactive';
+  });
+}
+
+function getImp(rowIdx) {
+  if (changes[rowIdx] !== undefined) return changes[rowIdx];
+  return parseInt(allRows[rowIdx][9], 10) || 1;
+}
+
+function applyFilter() {
+  filtered = [];
+  for (let i = allRows.length - 1; i >= 0; i--) {
+    const imp = getImp(i);
+    if (!filterImps.has(imp)) continue;
+    if (searchText) {
+      const title = (allRows[i][1] || '').toLowerCase();
+      const company = (allRows[i][2] || '').toLowerCase();
+      if (!title.includes(searchText) && !company.includes(searchText)) continue;
+    }
+    filtered.push(i);
+  }
+  renderTable();
+  renderPagination();
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  const start = (page - 1) * PAGE_SIZE;
+  const slice = filtered.slice(start, start + PAGE_SIZE);
+
+  if (slice.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty"><div class="icon">🔍</div>결과가 없습니다.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = slice.map(rowIdx => {
+    const row = allRows[rowIdx];
+    const imp = getImp(rowIdx);
+    const isChanged = changes[rowIdx] !== undefined;
+    const date = (row[0] || '').slice(0, 10);
+    const title = esc(row[1] || '');
+    const company = esc(row[2] || '');
+    const link = esc(row[3] || '');
+    const keyword = esc(row[6] || '');
+
+    return `<tr class="${isChanged ? 'changed-row' : ''}">
+      <td class="date-cell">${date}</td>
+      <td>
+        <div class="imp-btns">
+          <button class="imp-btn ${imp===3?'sel-3':''}" onclick="setImp(${rowIdx},3)" title="상">3</button>
+          <button class="imp-btn ${imp===2?'sel-2':''}" onclick="setImp(${rowIdx},2)" title="중">2</button>
+          <button class="imp-btn ${imp===1?'sel-1':''}" onclick="setImp(${rowIdx},1)" title="하">1</button>
+        </div>
+      </td>
+      <td><span class="company-cell">${company}</span></td>
+      <td class="title-cell"><a href="${link}" target="_blank" rel="noopener">${title}</a></td>
+      <td class="keyword-cell" title="${keyword}">${keyword}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderPagination() {
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const pg = document.getElementById('pagination');
+  if (totalPages <= 1) { pg.innerHTML = ''; return; }
+
+  const info = `<span style="font-size:12px;color:#64748b;margin:0 8px;">${filtered.length.toLocaleString()}건 / ${totalPages}페이지</span>`;
+
+  let btns = `<button class="page-btn" onclick="goPage(${page-1})" ${page===1?'disabled':''}>←</button>`;
+  const start = Math.max(1, Math.min(page-2, totalPages-4));
+  const end   = Math.min(totalPages, start+4);
+  for (let p = start; p <= end; p++) {
+    btns += `<button class="page-btn ${p===page?'active':''}" onclick="goPage(${p})">${p}</button>`;
+  }
+  btns += `<button class="page-btn" onclick="goPage(${page+1})" ${page===totalPages?'disabled':''}>→</button>`;
+  pg.innerHTML = info + btns;
+}
+
+function goPage(p) {
+  page = p;
+  renderTable();
+  renderPagination();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// ─── 중요도 변경 ───────────────────────────────────────────────────────
+function setImp(rowIdx, val) {
+  const original = parseInt(allRows[rowIdx][9], 10) || 1;
+  if (val === original) delete changes[rowIdx];
+  else changes[rowIdx] = val;
+  updateChangedStatus();
+  renderTable();
+}
+
+function updateChangedStatus() {
+  const cnt = Object.keys(changes).length;
+  const el = document.getElementById('statusChanged');
+  if (cnt > 0) {
+    el.style.display = '';
+    el.textContent = `✏️ ${cnt}개 변경됨`;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+// ─── 저장 ──────────────────────────────────────────────────────────────
+function showSaveModal() {
+  const cnt = Object.keys(changes).length;
+  if (cnt === 0) { alert('변경 사항이 없습니다.'); return; }
+  document.getElementById('saveModalDesc').textContent = `${cnt}개 뉴스의 중요도가 변경됩니다. 커밋 메시지를 입력하고 저장하세요.`;
+  document.getElementById('commitMsg').value = `fix: 뉴스 중요도 수동 수정 (${cnt}건)`;
+  document.getElementById('saveModal').classList.add('show');
+}
+
+function closeSaveModal() {
+  document.getElementById('saveModal').classList.remove('show');
+}
+
+async function doSave() {
+  const msg = document.getElementById('commitMsg').value.trim();
+  if (!msg) { alert('커밋 메시지를 입력하세요.'); return; }
+  document.getElementById('doSaveBtn').disabled = true;
+  document.getElementById('doSaveBtn').textContent = '저장 중...';
+  closeSaveModal();
+  setStatus('loading', '변경사항을 GitHub에 저장 중...');
+
+  try {
+    // 변경사항을 rows에 반영
+    for (const [idxStr, imp] of Object.entries(changes)) {
+      allRows[idxStr][9] = String(imp);
+    }
+    const csvText = serializeCSV(headers, allRows);
+
+    // UTF-8 BOM 포함해서 base64 인코딩
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode('\uFEFF' + csvText);
+    const base64 = btoa(String.fromCharCode(...bytes));
+
+    // GitHub Contents API로 PUT
+    await ghFetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: msg,
+        content: base64,
+        sha: currentFileSha,
+        branch: BRANCH,
+      }),
+    });
+
+    const changedCount = Object.keys(changes).length;
+    changes = {};
+    updateChangedStatus();
+    setStatus('success', `✅ ${changedCount}개 중요도 변경이 GitHub에 저장되었습니다!`);
+    // 새 SHA 업데이트를 위해 재로드
+    await loadCSV();
+  } catch(e) {
+    setStatus('error', '❌ 저장 실패: ' + e.message);
+    // 변경사항 복구 (rows 재파싱 필요)
+    await loadCSV();
+  }
+  document.getElementById('doSaveBtn').disabled = false;
+  document.getElementById('doSaveBtn').textContent = '저장하기';
+}
+
+// ─── 유틸 ──────────────────────────────────────────────────────────────
+function setStatus(type, msg) {
+  const el = document.getElementById('statusInfo');
+  el.className = type === 'error' ? 'error' : type === 'loading' ? 'loading' : type === 'success' ? 'success' : 'info';
+  el.textContent = msg;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function decodeBase64(b64) {
+  const bin = atob(b64.replace(/\n/g,''));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+</script>
+</body>
+</html>
