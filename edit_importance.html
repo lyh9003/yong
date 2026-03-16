@@ -220,23 +220,17 @@ async function loadCSV() {
   document.getElementById('saveBtn').disabled = true;
 
   try {
-    // contents API (파일 1MB 이하면 충분, 초과시 Git Data API로 fallback)
-    let content;
-    try {
-      const data = await ghFetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}?ref=${BRANCH}`);
-      currentFileSha = data.sha;
-      content = decodeBase64(data.content);
-    } catch(e) {
-      // large file: use Git Data API
-      const ref = await ghFetch(`https://api.github.com/repos/${OWNER}/${REPO}/git/ref/heads/${BRANCH}`);
-      const commit = await ghFetch(ref.object.url);
-      const tree = await ghFetch(commit.tree.url + '?recursive=0');
-      const fileEntry = tree.tree.find(t => t.path === FILE);
-      if (!fileEntry) throw new Error('파일을 찾을 수 없습니다.');
-      currentFileSha = fileEntry.sha;
-      const blob = await ghFetch(`https://api.github.com/repos/${OWNER}/${REPO}/git/blobs/${fileEntry.sha}`);
-      content = decodeBase64(blob.content);
-    }
+    // 1단계: contents API로 SHA 획득
+    const meta = await ghFetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}?ref=${BRANCH}`);
+    currentFileSha = meta.sha;
+
+    // 2단계: 파일 내용은 download_url로 직접 fetch (크기 제한 없음)
+    const token = getToken();
+    const rawRes = await fetch(meta.download_url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!rawRes.ok) throw new Error(`파일 다운로드 실패: HTTP ${rawRes.status}`);
+    const content = await rawRes.text();
 
     const parsed = parseCSV(content);
     headers = parsed[0];
