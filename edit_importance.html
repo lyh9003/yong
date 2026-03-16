@@ -450,7 +450,13 @@ async function doSave() {
     // UTF-8 BOM 포함해서 base64 인코딩
     const encoder = new TextEncoder();
     const bytes = encoder.encode('\uFEFF' + csvText);
-    const base64 = btoa(String.fromCharCode(...bytes));
+    
+    // 데이터를 하나씩 변환하도록 수정 (대용량 파일 에러 방지)
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64 = btoa(binary);
 
     // GitHub Contents API로 PUT
     await ghFetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`, {
