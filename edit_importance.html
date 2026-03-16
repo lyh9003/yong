@@ -226,9 +226,7 @@ async function loadCSV() {
 
     // 2단계: 파일 내용은 download_url로 직접 fetch (크기 제한 없음)
     const token = getToken();
-    const rawRes = await fetch(meta.download_url, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    const rawRes = await fetch(meta.download_url);
     if (!rawRes.ok) throw new Error(`파일 다운로드 실패: HTTP ${rawRes.status}`);
     const content = await rawRes.text();
 
