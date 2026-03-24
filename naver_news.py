@@ -14,15 +14,7 @@ client = OpenAI(api_key=api_key)
 
 MOBILE_NEWS_PREFIX = "https://n.news.naver.com/mnews/article/"
 
-CONTAINER_SELECTOR = (
-    "div.sds-comps-horizontal-layout"
-    ".sds-comps-full-layout"
-    ".sds-comps-profile"
-    ".type-basic"
-    ".size-lg"
-    ".title-color-g10 "
-    f"a[href^='{MOBILE_NEWS_PREFIX}']"
-)
+CONTAINER_SELECTOR = f"a[href^='{MOBILE_NEWS_PREFIX}']"
 
 HEADERS = {
     "User-Agent": (
@@ -91,9 +83,12 @@ def articles_crawler(search_page_url: str) -> list[str]:
     """네이버 뉴스 검색 결과 페이지에서 기사 링크 목록 반환."""
     html = requests.get(search_page_url, headers=HEADERS, timeout=10).text
     soup = BeautifulSoup(html, "html.parser")
+    matched = soup.select(CONTAINER_SELECTOR)
+    if not matched:
+        print(f"[경고] 셀렉터 매칭 0개: {search_page_url}")
     links = {
         a["href"].split("?", 1)[0]
-        for a in soup.select(CONTAINER_SELECTOR)
+        for a in matched
     }
     return sorted(links)
 
@@ -180,23 +175,21 @@ def score_importance(title: str, content_snippet: str) -> int:
     1: 일반 뉴스
     """
     prompt = (
-        "다음 반도체 관련 기사의 중요도를 1~3점으로만 평가하세요.\n\n"
-        "3점 기준: 메모리 업계 전반에 영향을 미치는 사건\n"
-        "  - 메모리 3사(삼성전자/SK하이닉스/마이크론) 대규모 공장 투자, M&A, 사업 철수\n"
-        "  - 메모리 시장에 대한 거시적인 분석 및 전망 \n"
-        "  - 삼성전자 목표주가 변화 \n"
-        "  - 반도체 공급망 위기 (소재·장비 수출금지, 재해)\n"
-        "  - 반도체 시장 예상을 크게 벗어난 실적\n\n"
-        "  - 메모리 시장에 대한 부정적인 전망\n\n"
-        "2점 기준: 주목할 만한 뉴스\n"
-        "  - 메모리 수요 변동을 주는 빅테크 기업 이슈 \n"
-        "  - SK하이닉스, 마이크론 및 미국 빅테크 목표주가 변화\n\n"
-        "  - 정부 정책/수출규제/보조금 확정\n"
-        "  - 미국 빅테크의 대규모 공장 투자, M&A, 사업 철수\n"
-        "1점 기준: 일반적인 뉴스\n"
-        "  - 메모리 3사(삼성전자/SK하이닉스/마이크론)가 아닌 반도체 회사 지엽적인 뉴스\n"
-        "  - 인사·채용·마케팅 관련\n"
-        "  - 이미 알려진 내용의 단순 반복 보도\n\n"
+        "다음 반도체 관련 기사의 중요도를 1~3점으로 평가하세요.\n\n"
+        "▶ 3점 (업계 전반에 영향을 미치는 중요 뉴스):\n"
+        "  - 메모리 3사(삼성전자/SK하이닉스/마이크론) 실적, 목표주가, 투자계획, 사업전략 변화\n"
+        "  - 메모리 시장 전망·분석 (긍정/부정 무관)\n"
+        "  - HBM, AI 반도체 시장 동향 (엔비디아·AMD·인텔 등 빅테크 포함)\n"
+        "  - 공급망 위기 또는 수출규제·보조금 등 정부 정책\n"
+        "  - 미국 빅테크(애플/구글/마이크로소프트/아마존/메타)의 반도체 투자·AI 전략\n\n"
+        "▶ 2점 (주목할 만한 뉴스):\n"
+        "  - 메모리 3사 이외 주요 반도체 기업(TSMC, 퀄컴, ARM 등) 동향\n"
+        "  - 반도체 장비·소재 핵심 기업 주요 계약·실적\n"
+        "  - 반도체 관련 국내 정책·산업 동향\n\n"
+        "▶ 1점 (일반 뉴스):\n"
+        "  - 인사·채용·마케팅·행사 관련\n"
+        "  - 소규모 기업의 지엽적 뉴스\n"
+        "  - 이미 보도된 내용의 단순 반복\n\n"
         f"제목: {title}\n"
         f"본문 앞부분: {content_snippet[:400]}\n\n"
         "숫자 1, 2, 3 중 하나만 출력하세요."
