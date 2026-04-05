@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 6 * * *'   # 매일 06:00 UTC (한국 15:00)
+    - cron: '0 12 * * *'  # 매일 12:00 UTC (한국 21:00)
     - cron: '0 18 * * *'  # 매일 18:00 UTC (한국 03:00)
 
 concurrency:
