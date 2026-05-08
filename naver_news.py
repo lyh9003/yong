@@ -14,17 +14,38 @@ client = OpenAI(api_key=api_key)
 
 MOBILE_NEWS_PREFIX = "https://n.news.naver.com/mnews/article/"
 
-CONTAINER_SELECTOR = f"a[href^='{MOBILE_NEWS_PREFIX}']"
-
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
+        "Chrome/124.0.0.0 Safari/537.36"
     ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
     "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-User": "?1",
     "Referer": "https://www.naver.com/",
 }
+
+# 세션: 쿠키 유지 + 연결 재사용
+SESSION = requests.Session()
+SESSION.headers.update(HEADERS)
+
+
+def _warm_up_session() -> None:
+    """네이버 메인을 먼저 방문해 쿠키를 획득한다."""
+    try:
+        SESSION.get("https://www.naver.com/", timeout=10)
+        time.sleep(random.uniform(1.0, 2.0))
+        SESSION.get("https://search.naver.com/search.naver?where=news&query=반도체", timeout=10)
+        time.sleep(random.uniform(1.0, 2.0))
+    except Exception as e:
+        print(f"[워밍업 실패] {e}")
 
 
 # ====== 파일 I/O ======
@@ -81,21 +102,46 @@ def makeUrl(search: str, start_pg: int, end_pg: int, start_date: str, end_date: 
 
 def articles_crawler(search_page_url: str) -> list[str]:
     """네이버 뉴스 검색 결과 페이지에서 기사 링크 목록 반환."""
-    html = requests.get(search_page_url, headers=HEADERS, timeout=10).text
+    resp = SESSION.get(search_page_url, timeout=10)
+    html = resp.text
     soup = BeautifulSoup(html, "html.parser")
-    matched = soup.select(CONTAINER_SELECTOR)
+
+    # 봇 감지 여부 확인
+    if resp.status_code != 200:
+        print(f"[경고] HTTP {resp.status_code}: {search_page_url}")
+        return []
+    if "로봇" in html or "captcha" in html.lower() or "unusual traffic" in html.lower():
+        print(f"[경고] 봇 감지 페이지 반환됨: {search_page_url}")
+        return []
+
+    # href에 n.news.naver.com/mnews/article 포함된 링크 수집 (프로토콜 무관)
+    all_links = soup.select("a[href]")
+    matched = [
+        a for a in all_links
+        if "n.news.naver.com/mnews/article" in a.get("href", "")
+        or "news.naver.com/mnews/article" in a.get("href", "")
+    ]
+
     if not matched:
+        naver_links = [a.get("href", "") for a in all_links if "naver.com" in a.get("href", "")][:5]
         print(f"[경고] 셀렉터 매칭 0개: {search_page_url}")
-    links = {
-        a["href"].split("?", 1)[0]
-        for a in matched
-    }
+        print(f"  → 페이지 내 naver.com 링크 예시: {naver_links}")
+        # 봇 차단 확인용: 페이지 앞부분 출력
+        print(f"  → HTML 앞 300자: {html[:300]}")
+
+    links = set()
+    for a in matched:
+        href = a["href"]
+        # 프로토콜 상대 URL 처리
+        if href.startswith("//"):
+            href = "https:" + href
+        links.add(href.split("?", 1)[0])
     return sorted(links)
 
 
 def crawl_article(url: str) -> dict:
     """단일 기사 URL에서 제목, 본문, 날짜, 언론사를 추출."""
-    soup = BeautifulSoup(requests.get(url, headers=HEADERS, timeout=10).text, "html.parser")
+    soup = BeautifulSoup(SESSION.get(url, timeout=10).text, "html.parser")
 
     img = soup.select_one(
         "#ct > div.media_end_head.go_trans > div.media_end_head_top > a.media_end_head_top_logo > img"
@@ -256,6 +302,8 @@ def deduplicate_by_title_similarity(df: pd.DataFrame, threshold: int = 70) -> pd
 # ====== 메인 ======
 
 def main():
+    _warm_up_session()
+
     file_name = "Total_Filtered_No_Comment.csv"
     existing_links = load_existing_links(file_name)
     print(f"기존 수집 링크 수: {len(existing_links)}")
@@ -277,7 +325,7 @@ def main():
         raw_links = []
         for url in urls:
             raw_links.extend(articles_crawler(url))
-            time.sleep(random.uniform(0.2, 0.5))
+            time.sleep(random.uniform(1.0, 2.5))
 
         # 2. 이미 수집된 링크 제외 (GPT 호출 전 필터링 → API 비용 절감)
         new_links = list({link for link in raw_links if link not in existing_links})
