@@ -22,7 +22,7 @@ HEADERS = {
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
     "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Encoding": "gzip, deflate",
     "Connection": "keep-alive",
     "Upgrade-Insecure-Requests": "1",
     "Sec-Fetch-Dest": "document",
@@ -110,7 +110,7 @@ def articles_crawler(search_page_url: str) -> list[str]:
     if resp.status_code != 200:
         print(f"[경고] HTTP {resp.status_code}: {search_page_url}")
         return []
-    if "로봇" in html or "captcha" in html.lower() or "unusual traffic" in html.lower():
+    if resp.status_code == 403 or "접근이 차단" in html or "unusual traffic" in html.lower():
         print(f"[경고] 봇 감지 페이지 반환됨: {search_page_url}")
         return []
 
@@ -123,11 +123,9 @@ def articles_crawler(search_page_url: str) -> list[str]:
     ]
 
     if not matched:
-        naver_links = [a.get("href", "") for a in all_links if "naver.com" in a.get("href", "")][:5]
+        naver_links = [a.get("href", "") for a in all_links if "naver.com" in a.get("href", "")][:10]
         print(f"[경고] 셀렉터 매칭 0개: {search_page_url}")
-        print(f"  → 페이지 내 naver.com 링크 예시: {naver_links}")
-        # 봇 차단 확인용: 페이지 앞부분 출력
-        print(f"  → HTML 앞 300자: {html[:300]}")
+        print(f"  → 페이지 내 naver.com 링크 전체: {naver_links}")
 
     links = set()
     for a in matched:
