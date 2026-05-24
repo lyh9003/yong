@@ -257,16 +257,16 @@ def score_importance(title: str, content_snippet: str) -> int:
 
 
 def summarize_content(text: str) -> str:
-    """기사 본문을 200자 이내로 요약."""
+    """기사 본문을 400자 이내로 요약."""
     try:
         response = client.chat.completions.create(
             model="gpt-4.1-nano",
             messages=[
                 {"role": "system", "content": "뉴스 기사 요약기."},
-                {"role": "user", "content": f"다음 기사를 200자 이내로 요약해주세요:\n\n{text[:3000]}"}
+                {"role": "user", "content": f"다음 기사를 400자 이내로 요약해주세요:\n\n{text[:3000]}"}
             ],
             temperature=0.5,
-            max_tokens=300,
+            max_tokens=600,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
