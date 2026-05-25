@@ -266,7 +266,7 @@ def summarize_content(text: str) -> str:
                 {"role": "user", "content": f"다음 기사를 400자 이내로 요약해주세요:\n\n{text[:3000]}"}
             ],
             temperature=0.5,
-            max_tokens=600,
+            max_tokens=1200,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
