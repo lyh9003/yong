@@ -297,12 +297,49 @@ def deduplicate_by_title_similarity(df: pd.DataFrame, threshold: int = 70) -> pd
     return kept
 
 
+# ====== 아카이브 ======
+
+def archive_old_data(file_name: str) -> None:
+    """현재달 + 전달만 메인 CSV에 유지, 그 이전 데이터는 archive/YYYYMM.csv로 이동."""
+    if not os.path.exists(file_name):
+        return
+
+    df = pd.read_csv(file_name, encoding='utf-8-sig')
+    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+
+    now = datetime.datetime.now()
+    cutoff = (now.replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
+
+    old_data = df[df['date'] < cutoff]
+    new_data = df[df['date'] >= cutoff]
+
+    if old_data.empty:
+        print("아카이브할 데이터 없음")
+        return
+
+    os.makedirs('archive', exist_ok=True)
+    for period, group in old_data.groupby(old_data['date'].dt.to_period('M')):
+        archive_file = f"archive/{period.strftime('%Y%m')}.csv"
+        group = group.copy()
+        if os.path.exists(archive_file):
+            existing = pd.read_csv(archive_file, encoding='utf-8-sig')
+            group = pd.concat([existing, group]).drop_duplicates(subset='link', keep='first').reset_index(drop=True)
+        group['date'] = group['date'].dt.strftime('%Y-%m-%d')
+        group.to_csv(archive_file, encoding='utf-8-sig', index=False)
+        print(f"아카이브 저장: {archive_file} ({len(group)}행)")
+
+    new_data['date'] = new_data['date'].dt.strftime('%Y-%m-%d')
+    new_data.to_csv(file_name, encoding='utf-8-sig', index=False)
+    print(f"메인 CSV: {len(new_data)}행 유지 ({cutoff.strftime('%Y-%m-%d')} 이후)")
+
+
 # ====== 메인 ======
 
 def main():
     _warm_up_session()
 
     file_name = "Total_Filtered_No_Comment.csv"
+    archive_old_data(file_name)
     existing_links = load_existing_links(file_name)
     print(f"기존 수집 링크 수: {len(existing_links)}")
 

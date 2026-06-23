@@ -42,6 +42,6 @@ jobs:
           git config --local user.email "lyh9003@gmail.com"
           git config --local user.name "LeeYongHoon"
           git remote set-url origin https://${{ secrets.NAVER_NEWS }}@github.com/lyh9003/yong.git
-          git add Total_Filtered_No_Comment.csv
+          git add Total_Filtered_No_Comment.csv archive/
           git commit -m "Update Total_Filtered_No_Comment.csv [skip ci]" || echo "No changes to commit"
           git push origin HEAD:main

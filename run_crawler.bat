@@ -46,7 +46,7 @@ if %errorlevel% neq 0 (
 )
 
 echo [5/5] Committing...
-git add Total_Filtered_No_Comment.csv
+git add Total_Filtered_No_Comment.csv archive/
 git diff --cached --quiet
 if %errorlevel% equ 0 (
     echo No new articles collected.
