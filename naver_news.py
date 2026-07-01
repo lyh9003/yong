@@ -321,10 +321,10 @@ def archive_old_data(file_name: str) -> None:
     for period, group in old_data.groupby(old_data['date'].dt.to_period('M')):
         archive_file = f"archive/{period.strftime('%Y%m')}.csv"
         group = group.copy()
+        group['date'] = group['date'].dt.strftime('%Y-%m-%d')  # concat 전에 먼저 string 변환
         if os.path.exists(archive_file):
             existing = pd.read_csv(archive_file, encoding='utf-8-sig')
             group = pd.concat([existing, group]).drop_duplicates(subset='link', keep='first').reset_index(drop=True)
-        group['date'] = group['date'].dt.strftime('%Y-%m-%d')
         group.to_csv(archive_file, encoding='utf-8-sig', index=False)
         print(f"아카이브 저장: {archive_file} ({len(group)}행)")
 
